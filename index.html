@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skill Explainers</title>
+<meta name="description" content="Interactive explainers of Claude Code skills: how each one is organised, and the domain knowledge it is built on.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f5f3;--surface:#fff;--ink:#16181b;--ink2:#3a3e44;--mute:#6b7077;--line:#e2e3e5;--accent:#d6182b;--soft:rgba(214,24,43,.08);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101113;--surface:#18191c;--ink:#ececed;--ink2:#c8cbcf;--mute:#979ca3;--line:#2a2c30;--accent:#ff4d5e;--soft:rgba(255,77,94,.12);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101113;--surface:#18191c;--ink:#ececed;--ink2:#c8cbcf;--mute:#979ca3;--line:#2a2c30;--accent:#ff4d5e;--soft:rgba(255,77,94,.12);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+header{padding:72px 0 36px}
+.eyebrow{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(36px,6vw,60px);line-height:1.02;letter-spacing:-.035em;margin:12px 0 14px;font-weight:800}
+h1 span{color:var(--accent)}
+.lede{font-size:18px;color:var(--ink2);max-width:680px;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:20px}
+.card{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;transition:border-color .15s,transform .15s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card .no{font:600 12px 'JetBrains Mono',monospace;color:var(--mute)}
+.card h2{margin:8px 0 6px;font-size:22px;letter-spacing:-.02em}
+.card p{margin:0;color:var(--ink2);font-size:14.5px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.tags span{font:600 11px 'JetBrains Mono',monospace;padding:3px 8px;border-radius:5px;background:var(--soft);color:var(--accent)}
+.tags span.d{background:none;border:1px solid var(--line);color:var(--mute)}
+.card.empty{border-style:dashed;display:grid;place-items:center;color:var(--mute);min-height:200px;font-size:14px;text-align:center}
+.card.empty:hover{transform:none;border-color:var(--line)}
+h3{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin:48px 0 0}
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:14px}
+.how div{border-top:2px solid var(--ink);padding-top:10px;font-size:14.5px;color:var(--ink2)}
+.how b{display:block;color:var(--ink);margin-bottom:4px}
+footer{margin:72px 0 40px;color:var(--mute);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header>
+  <div class="eyebrow">Index</div>
+  <h1>skill<span>/</span>explainers</h1>
+  <p class="lede">Interactive teardowns of Claude Code skills worth learning from. Each one covers <b>how the skill is organised</b> (what the agent reads, what it runs, what it copies, and why) so you can write skills for complex work. It also covers <b>the domain knowledge</b> underneath, such as rendering, UI, animation and audio.</p>
+</header>
+
+<h3>Explainers</h3>
+<div class="grid">
+  <a class="card" href="explainers/teardown/index.html">
+    <div class="no">001 · elvarofficial/teardown</div>
+    <h2>teardown</h2>
+    <p>Turns "how does this machine work?" into an offline 3D simulator page plus a 60 fps film with a synced score. Covers the playbook-plus-tools structure, the <code>render(t)</code> contract, the review loop that gives the agent eyes, and the rendering pipeline underneath.</p>
+    <div class="tags"><span>skill design</span><span>three.js</span><span>post-processing</span><span>kinematics</span><span>easing</span><span>audio</span><span class="d">2026-10-31</span></div>
+  </a>
+  <div class="card empty">Next skill goes here</div>
+</div>
+
+<h3>Every explainer has</h3>
+<div class="how">
+  <div><b>A · Organisation</b>The file tree and who reads each file, the anatomy of SKILL.md, the agent's loop step by step, and lessons for writing your own.</div>
+  <div><b>B · Runtime</b>How the skill's code actually works, with live demos ported from its source and its real numbers.</div>
+  <div><b>C · Domain</b>The technical ideas it depends on, explained so you can use them in your own work.</div>
+</div>
+<footer>A personal learning index. Explainers are single self-contained HTML files; open them directly in a browser.</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,1598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teardown, Explained</title>
+<meta name="description" content="How the teardown Claude Code skill is organised, and the rendering, animation, UI and audio ideas it is built on.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f5f3; --surface:#ffffff; --surface2:#f0f0ee; --ink:#16181b; --ink2:#3a3e44; --mute:#6b7077; --faint:#b9bcc1; --line:#e2e3e5;
+  --accent:#d6182b; --accent-soft:rgba(214,24,43,.09); --blue:#2f7fd3; --orange:#e8590c; --green:#2b8a5b; --violet:#6d4fd8; --amber:#b7791f;
+  --code-bg:#f3f3f1; --shadow:0 1px 2px rgba(20,22,26,.05),0 4px 16px rgba(20,22,26,.04);
+  --k-instr:#6d4fd8; --k-tool:#2f7fd3; --k-kit:#2b8a5b; --k-machine:#e8590c; --k-entry:#b7791f; --k-sound:#c2255c; --k-asset:#868e96;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101113; --surface:#18191c; --surface2:#1f2124; --ink:#ececed; --ink2:#c8cbcf; --mute:#979ca3; --faint:#4a4e54; --line:#2a2c30;
+    --accent:#ff4d5e; --accent-soft:rgba(255,77,94,.12); --blue:#5aa2ef; --orange:#ff8a3d; --green:#4cc38a; --violet:#9b85ff; --amber:#e0a84a;
+    --code-bg:#141518; --shadow:none;
+    --k-instr:#9b85ff; --k-tool:#5aa2ef; --k-kit:#4cc38a; --k-machine:#ff8a3d; --k-entry:#e0a84a; --k-sound:#f06595; --k-asset:#adb5bd;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101113; --surface:#18191c; --surface2:#1f2124; --ink:#ececed; --ink2:#c8cbcf; --mute:#979ca3; --faint:#4a4e54; --line:#2a2c30;
+  --accent:#ff4d5e; --accent-soft:rgba(255,77,94,.12); --blue:#5aa2ef; --orange:#ff8a3d; --green:#4cc38a; --violet:#9b85ff; --amber:#e0a84a;
+  --code-bg:#141518; --shadow:none;
+  --k-instr:#9b85ff; --k-tool:#5aa2ef; --k-kit:#4cc38a; --k-machine:#ff8a3d; --k-entry:#e0a84a; --k-sound:#f06595; --k-asset:#adb5bd;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+code,pre,.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+code{font-size:.86em;background:var(--code-bg);border:1px solid var(--line);border-radius:4px;padding:.05em .35em}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow:auto;font-size:12.5px;line-height:1.55;margin:12px 0}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:18px;height:52px}
+.nav .brand{font-weight:800;letter-spacing:-.01em;white-space:nowrap;text-decoration:none;color:var(--ink)}
+.nav .brand span{color:var(--accent)}
+.nav .links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1}
+.nav .links::-webkit-scrollbar{display:none}
+.nav .links a{font-size:13px;font-weight:600;color:var(--mute);text-decoration:none;padding:6px 10px;border-radius:6px;white-space:nowrap}
+.nav .links a:hover,.nav .links a.on{color:var(--ink);background:var(--surface2)}
+.iconbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;height:32px;min-width:32px;cursor:pointer;font-size:15px}
+/* hero */
+.hero{padding:64px 0 28px}
+.eyebrow{font:600 12px/1 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(34px,5.5vw,58px);line-height:1.04;letter-spacing:-.035em;margin:14px 0 16px;font-weight:800}
+.lede{font-size:clamp(17px,2vw,20px);color:var(--ink2);max-width:760px;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);text-decoration:none}
+.chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+/* sections */
+.part{margin-top:56px;padding-top:28px;border-top:2px solid var(--ink)}
+.part-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.part-h .n{font:700 13px 'JetBrains Mono',monospace;color:var(--accent)}
+.part-h h2{font-size:clamp(26px,3.4vw,36px);letter-spacing:-.025em;margin:0;font-weight:800}
+.part-h p{flex-basis:100%;margin:6px 0 0;color:var(--mute);max-width:760px}
+section.s{margin-top:44px}
+section.s>h3{font-size:22px;letter-spacing:-.015em;margin:0 0 6px;font-weight:700}
+section.s>h3 .k{font:600 12px 'JetBrains Mono',monospace;color:var(--mute);margin-right:8px;vertical-align:2px}
+.sub{color:var(--ink2);max-width:780px;margin:0 0 16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.pad{padding:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 14px;border-radius:0 8px 8px 0;font-size:14.5px;margin:14px 0}
+.note b{color:var(--accent)}
+.why{font-size:14px;color:var(--ink2)}
+.lbl{font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+canvas{display:block;width:100%}
+/* controls */
+.ctrls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 16px;border-top:1px solid var(--line)}
+.btn{font:600 12.5px Inter,sans-serif;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:7px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--faint)}
+.btn.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn.acc{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg .btn{border:0;border-radius:0;border-right:1px solid var(--line)}
+.seg .btn:last-child{border-right:0}
+input[type=range]{accent-color:var(--accent);width:180px;max-width:100%}
+.rng{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
+.rng output{font:600 12.5px 'JetBrains Mono',monospace;color:var(--ink);min-width:58px}
+label.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);cursor:pointer}
+label.chk input{accent-color:var(--accent)}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line)}
+.readouts div{background:var(--surface);padding:10px 14px}
+.readouts b{display:block;font:600 17px 'JetBrains Mono',monospace;color:var(--ink);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* file tree */
+.tree{display:grid;grid-template-columns:minmax(260px,330px) 1fr;min-height:520px}
+@media (max-width:860px){.tree{grid-template-columns:1fr}}
+.tree-list{border-right:1px solid var(--line);padding:10px 0;max-height:640px;overflow:auto;font:13px/1 'JetBrains Mono',monospace}
+@media (max-width:860px){.tree-list{border-right:0;border-bottom:1px solid var(--line);max-height:320px}}
+.tree-list .row{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;white-space:nowrap;color:var(--ink2)}
+.tree-list .row:hover{background:var(--surface2)}
+.tree-list .row.on{background:var(--accent-soft);color:var(--ink)}
+.tree-list .row.dir{color:var(--mute);cursor:default;font-weight:600}
+.tree-list .row.dir:hover{background:none}
+.dot{width:8px;height:8px;border-radius:2px;flex:none}
+.tree-detail{padding:22px}
+.tree-detail h4{font:600 18px 'JetBrains Mono',monospace;margin:0 0 4px;word-break:break-all}
+.tag{display:inline-block;font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;margin:6px 6px 0 0;border:1px solid var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink2)}
+.legend span{display:flex;align-items:center;gap:6px}
+/* anatomy */
+details.an{border-top:1px solid var(--line)}
+details.an:first-of-type{border-top:0}
+details.an summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:10px;padding:14px 18px}
+details.an summary::-webkit-details-marker{display:none}
+details.an summary .no{font:600 12px 'JetBrains Mono',monospace;color:var(--mute)}
+details.an summary .t{font-weight:700}
+details.an summary .t small{display:block;font-weight:500;color:var(--mute);font-size:13px}
+details.an summary .pl{font:600 18px 'JetBrains Mono',monospace;color:var(--mute);transition:transform .2s}
+details.an[open] summary .pl{transform:rotate(45deg);color:var(--accent)}
+details.an .body{padding:0 18px 18px 72px;font-size:14.5px}
+@media (max-width:600px){details.an .body{padding-left:18px}}
+.bar-wrap{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0 4px;border:1px solid var(--line)}
+.bar-wrap div{height:100%;display:flex;align-items:center;justify-content:center;font:600 10.5px 'JetBrains Mono',monospace;color:#fff;overflow:hidden;white-space:nowrap;cursor:default}
+/* stepper */
+.stepper{display:grid;grid-template-columns:260px 1fr}
+@media (max-width:860px){.stepper{grid-template-columns:1fr}}
+.steps{border-right:1px solid var(--line);padding:8px 0;max-height:560px;overflow:auto}
+@media (max-width:860px){.steps{border-right:0;border-bottom:1px solid var(--line);max-height:240px}}
+.steps button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:8px 16px;cursor:pointer;color:var(--ink2);font:500 13.5px Inter,sans-serif}
+.steps button .b{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:600 10.5px 'JetBrains Mono',monospace;border:1.5px solid var(--faint);color:var(--mute)}
+.steps button.agent .b{border-color:var(--violet)}
+.steps button.tool .b{border-color:var(--blue)}
+.steps button.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.steps button.on .b{background:var(--accent);border-color:var(--accent);color:#fff}
+.steps button.done .b{background:var(--surface2)}
+.step-body{padding:22px;min-height:360px}
+.step-body h4{font-size:20px;margin:6px 0 8px;letter-spacing:-.01em}
+.who{display:inline-flex;align-items:center;gap:6px;font:600 11px 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.06em;padding:4px 8px;border-radius:5px}
+.who.agent{background:color-mix(in srgb,var(--violet) 14%,transparent);color:var(--violet)}
+.who.tool{background:color-mix(in srgb,var(--blue) 14%,transparent);color:var(--blue)}
+/* lessons */
+.lesson{padding:18px}
+.lesson .ln{font:700 12px 'JetBrains Mono',monospace;color:var(--accent)}
+.lesson h4{margin:6px 0 8px;font-size:16.5px;letter-spacing:-.01em}
+.lesson p{margin:0;font-size:14.5px;color:var(--ink2)}
+.lesson .ev{margin-top:10px;font-size:12.5px;color:var(--mute);border-top:1px dashed var(--line);padding-top:8px}
+/* misc */
+.stroke-chip{display:inline-block;font:700 13px 'JetBrains Mono',monospace;letter-spacing:.08em;padding:4px 10px;border-radius:6px;color:#fff}
+.passes{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;padding:18px}
+.pass{flex:1 1 120px;min-width:118px;border:1px solid var(--line);background:var(--surface2);border-radius:9px;padding:10px 12px;cursor:pointer;position:relative;margin:6px 14px 6px 0;font-size:13px}
+.pass:after{content:'→';position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--faint);font-weight:700;width:14px;text-align:center}
+.pass:last-child:after{display:none}
+.pass b{display:block;font-size:13.5px}
+.pass small{color:var(--mute);font:500 11px 'JetBrains Mono',monospace}
+.pass.on{border-color:var(--accent);background:var(--accent-soft)}
+.pass.toggle{border-style:dashed}
+.trap{padding:16px}
+.trap h4{margin:0 0 6px;font-size:15px}
+.trap p{margin:0;font-size:14px;color:var(--ink2)}
+.trap .fix{margin-top:8px;font-size:13px}
+.trap .fix code{font-size:12px}
+.hand{position:relative;height:300px;overflow:hidden;background:var(--surface2);user-select:none}
+.hand .hb{position:absolute;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;padding:6px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer}
+.hand .hb.on{background:var(--ink);color:var(--surface)}
+.hand .tc{position:absolute;left:50%;top:12px;transform:translateX(-50%);font:600 10.5px Inter,sans-serif;letter-spacing:.1em;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:7px}
+.hand .tc i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.hand .tc.on i{animation:blink 1.2s steps(2) infinite}
+@keyframes blink{50%{opacity:.15}}
+.hand .cur{position:absolute;left:0;top:0;pointer-events:none;z-index:5;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.hand .ring{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px solid var(--accent);pointer-events:none;opacity:0}
+.hand canvas{position:absolute;inset:0;height:100%}
+.sm{display:block;width:100%;height:auto}
+.warm{display:grid;gap:10px;padding:18px}
+.warm .row{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:12px;font-size:13px}
+@media (max-width:600px){.warm .row{grid-template-columns:1fr}}
+.warm .lane{position:relative;height:22px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.warm .lane div{position:absolute;top:3px;bottom:3px;border-radius:3px}
+.tier-t{width:100%;border-collapse:collapse;font-size:13px}
+.tier-t td,.tier-t th{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
+.tier-t th{font:600 11px 'JetBrains Mono',monospace;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.tier-t tr.on td{background:var(--accent-soft);font-weight:600}
+.log{font:12px/1.6 'JetBrains Mono',monospace;color:var(--ink2);max-height:120px;overflow:auto;padding:10px 16px;border-top:1px solid var(--line)}
+.foot{margin:80px 0 40px;padding-top:20px;border-top:1px solid var(--line);color:var(--mute);font-size:13px}
+#three-wrap{position:relative;height:440px;background:var(--surface2);border-radius:12px 12px 0 0;overflow:hidden;cursor:grab;touch-action:none}
+#three-wrap canvas{height:100%}
+#three-msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--mute);font-size:14px;padding:20px;text-align:center}
+.kbd{font:600 11px 'JetBrains Mono',monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="wrap">
+  <a class="brand" href="../../index.html">skill<span>/</span>explainers</a>
+  <div class="links" id="navlinks">
+    <a href="#a">A · Organisation</a>
+    <a href="#tree">Files</a>
+    <a href="#anatomy">SKILL.md</a>
+    <a href="#workflow">Workflow</a>
+    <a href="#lessons">Lessons</a>
+    <a href="#b">B · Runtime</a>
+    <a href="#crank">One input</a>
+    <a href="#pure">render(t)</a>
+    <a href="#jansen">Linkage</a>
+    <a href="#handoff">Tour</a>
+    <a href="#timeline">Timeline</a>
+    <a href="#c">C · Domain</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#cutaway">Cutaway</a>
+    <a href="#light">Light</a>
+    <a href="#easing">Easing</a>
+    <a href="#perf">Perf</a>
+    <a href="#overlay">Overlay</a>
+    <a href="#sound">Sound</a>
+    <a href="#traps">Traps</a>
+    <a href="#template">Template</a>
+  </div>
+  <button class="iconbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+</div></nav>
+
+<main class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Skill explainer · 001</div>
+  <h1>teardown: how a skill turns <em style="font-style:normal;color:var(--accent)">“how does this machine work?”</em> into a 3D simulator</h1>
+  <p class="lede">You ask Claude how something works. It builds the machine as one offline HTML page where the parts move, the gauges read real numbers, a button opens up the part doing the work, and the page tours itself when nobody is touching it. The same code then records a 60 fps film with a soundtrack timed to the same events. This page covers how the skill is organised so it can do that reliably, and the rendering, animation, UI and audio ideas underneath.</p>
+  <div class="meta">
+    <a class="chip" href="https://github.com/elvarofficial/teardown" target="_blank" rel="noopener">github.com/elvarofficial/teardown</a>
+    <span class="chip mono">@ e7e668c · 2026-10-30</span>
+    <span class="chip">MIT · built on whaleyxbt/claude-motion</span>
+    <span class="chip">three 0.186 · esbuild · Playwright · ffmpeg · Python stdlib</span>
+  </div>
+
+  <div class="card" style="margin-top:28px;overflow:hidden">
+    <svg id="flow" viewBox="0 0 1080 168" class="sm" role="img" aria-label="Pipeline: request to SKILL.md to machine folder to build to HTML page to capture to MP4 plus score">
+    </svg>
+  </div>
+</header>
+
+<!-- ============================================================ PART A -->
+<div class="part" id="a">
+  <div class="part-h"><span class="n">PART A</span><h2>How the skill is organised</h2>
+  <p>What Claude reads, what code it runs, and what it copies. The main lesson: a hard task becomes reliable when judgment lives in prose and mechanics live in code.</p></div>
+</div>
+
+<section class="s" id="tree">
+  <h3><span class="k">A1</span>The repository: who reads each file</h3>
+  <p class="sub">Click any file. Only <b>one</b> file in this repo, <code>SKILL.md</code>, gets into Claude's context automatically. Everything else is code Claude <i>runs</i>, code it <i>copies</i>, or code the browser runs.</p>
+  <div class="card" style="overflow:hidden">
+    <div class="legend" id="tree-legend"></div>
+    <div class="tree">
+      <div class="tree-list" id="tree-list"></div>
+      <div class="tree-detail" id="tree-detail"></div>
+    </div>
+  </div>
+  <div class="card pad" style="margin-top:14px">
+    <div class="lbl">Where the bytes are (approx., source only)</div>
+    <div class="bar-wrap" id="bytes-bar"></div>
+    <div class="why">SKILL.md is about <b>12 KB of prose</b>, against roughly <b>390 KB of JavaScript and Python</b>. The prose holds the parts that need judgment, like what to build, the rules and taste, and how to review. The code holds everything that has to come out the same every time: bundling, frame capture, synthesis, mastering, contact sheets.</div>
+  </div>
+</section>
+
+<section class="s" id="anatomy">
+  <h3><span class="k">A2</span>Anatomy of SKILL.md</h3>
+  <p class="sub">The order of its sections, and why each one is there. Expand any of them. If you're writing your own complex skill, this is the main pattern to copy.</p>
+  <div class="card" id="anatomy-list"></div>
+</section>
+
+<section class="s" id="workflow">
+  <h3><span class="k">A3</span>The agent's loop, step by step</h3>
+  <p class="sub">What Claude actually does with the skill, from the trigger to the final MP4. <span class="who agent">agent</span> steps need judgment (Claude thinking and writing code). <span class="who tool">tool</span> steps are deterministic scripts the skill ships. Steps 9–11 repeat until a full review pass finds nothing.</p>
+  <div class="card" style="overflow:hidden">
+    <div class="stepper">
+      <div class="steps" id="steps"></div>
+      <div class="step-body" id="step-body"></div>
+    </div>
+    <div class="ctrls"><button class="btn" id="st-prev">← Prev</button><button class="btn acc" id="st-next">Next →</button><span class="lbl" id="st-pos"></span></div>
+  </div>
+</section>
+
+<section class="s" id="lessons">
+  <h3><span class="k">A4</span>Ten lessons for writing complex skills</h3>
+  <p class="sub">Why a skill like this beats a long prompt. Each lesson is tied to the place in teardown where you can see it.</p>
+  <div class="grid2" id="lesson-grid"></div>
+  <div class="note"><b>A critique worth learning from.</b> SKILL.md says <i>"Every beat goes into <code>&lt;name&gt;-film/timeline.json</code>. The score reads the same file."</i> But the shipped V8 <code>timeline.json</code> is only <code>{"duration":26}</code>. Its beat times live in <code>film.js</code>'s <code>SCRIPT</code> and are typed again by hand in <code>score.py</code> (<code>CLICKS = (3.5, 6.9, 9.7, …)</code>, with the comment <i>"Times … mirror v8-shared/film.js"</i>). So <code>--stills beats</code> on this film grabs only frame 0. A rule that no code enforces drifts, even in the author's own examples. If a contract matters, write a script that checks it.</div>
+</section>
+
+<!-- ============================================================ PART B -->
+<div class="part" id="b">
+  <div class="part-h"><span class="n">PART B</span><h2>How the machine runtime works</h2>
+  <p>The architecture every machine follows, with live demos built from the skill's own code and real numbers.</p></div>
+</div>
+
+<section class="s" id="crank">
+  <h3><span class="k">B1</span>One input drives everything</h3>
+  <p class="sub">Rules 2 and 3: <i>"Every gauge, chart and label reads from the same function that poses the parts"</i>, and <i>"One input drives everything."</i> In the V8 that input is the crank angle. Below, one number (ψ, degrees after this cylinder fires, 0–720°) drives the piston, rod, valves, charge colour, P-V diagram and valve chart, all through the formulas in <code>v8-shared/kin.js</code> with its real dimensions (bore 101.6 mm, crank radius 44.5, rod 145, compression ratio 10.2).</p>
+  <div class="card" style="overflow:hidden">
+    <div class="grid2" style="gap:0">
+      <canvas id="crank-mech" aria-label="Slider-crank mechanism"></canvas>
+      <canvas id="crank-chart" aria-label="P-V diagram and valve timing"></canvas>
+    </div>
+    <div class="readouts" id="crank-ro"></div>
+    <div class="ctrls">
+      <button class="btn acc" id="crank-play">❚❚ Pause</button>
+      <div class="rng">ψ <input type="range" id="crank-psi" min="0" max="720" step="1" value="0"><output id="crank-psi-o">0°</output></div>
+      <div class="rng">speed <input type="range" id="crank-spd" min="10" max="400" step="5" value="90"><output id="crank-spd-o">90°/s</output></div>
+    </div>
+  </div>
+  <pre><code>// kin.js: everything is a function of the phase ps. Nothing is keyframed.
+export const pistonFrac = (ps) => {                 // 0 at TDC, 1 at BDC
+  const a = (ps * Math.PI) / 180;
+  const sp = E.r * Math.cos(a) + Math.sqrt(E.rod * E.rod - (E.r * Math.sin(a)) ** 2);
+  return (S_TDC - sp) / STROKE;
+};
+export const volume = (ps) => 1 + (E.cr - 1) * pistonFrac(ps);   // in clearance volumes
+export const pressure = (ps) => { /* polytropic compression, fast burn, expansion */ };</code></pre>
+  <p class="why">The panels in the real page (<code>console.js</code>) import <code>pressure</code>, <code>volume</code>, <code>liftEx</code> and <code>liftIn</code> from the same module that <code>engine.js</code> uses to pose the meshes. A chart can't disagree with the motion because both are computed by the same function.</p>
+</section>
+
+<section class="s" id="pure">
+  <h3><span class="k">B2</span>The <code>render(t)</code> contract: why frames must be pure</h3>
+  <p class="sub">The capture script doesn't play the page. It calls <code>window.SIM.render(t)</code> for <code>t = 0, 1/60, 2/60…</code>, waits for each screenshot, and the review step jumps straight to <code>--still 12.5</code>. So a frame can't depend on the frame before it. Both dots below should follow the same path. One is computed as <code>x = f(t)</code>; the other accumulates <code>x += v·dt</code> like a typical game loop. Try seeking.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="pure-cv"></canvas>
+    <div class="readouts" id="pure-ro"></div>
+    <div class="ctrls">
+      <button class="btn acc" id="pure-play">▶ Play</button>
+      <button class="btn" id="pure-seek">Seek to t = 12.5 s (<span class="mono">--still 12.5</span>)</button>
+      <button class="btn" id="pure-rand">Capture 5 random frames</button>
+      <button class="btn" id="pure-reset">Reset</button>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card pad"><div class="lbl">How teardown keeps it pure</div>
+      <ul class="why" style="margin:8px 0 0;padding-left:18px">
+        <li>No <code>Math.random</code> and no <code>Date</code> in <code>render</code>. Use the seeded <code>rng(seed)</code> (mulberry32) from <code>kit/util.js</code> at setup, or the stateless <code>hash(n)</code>.</li>
+        <li>Anything integrated over time is <b>tabulated at load</b>. <code>film.js</code> integrates the crank angle under a changing RPM into an array <code>TH[]</code> at 240 Hz, and <code>thetaAt(t)</code> interpolates it. The Strandbeest's crank under changing wind is handled the same way.</li>
+        <li>Particles and agents are simulated once into typed arrays; <code>render</code> only reads them.</li>
+      </ul></div>
+    <div class="card pad"><div class="lbl">The same function, two clocks</div>
+      <p class="why" style="margin:8px 0 0"><code>kit/runtime.js</code> wraps one <code>setup()</code> two ways. In <b>live</b> mode, <code>requestAnimationFrame</code> feeds it <code>(now − start)/1000</code>. In <b>capture</b> mode (<code>window.__CAPTURE</code>), it exposes <code>window.SIM = {render(t), duration, fps, ready}</code> and never loops. Playwright then drives time: <code>for (i…) { await draw(from + i/fps); page.screenshot() → ffmpeg stdin }</code>. Each frame takes as long as it needs to render, so the video plays smoothly at 60 fps even if the machine rendering it can't reach 60 fps live.</p></div>
+  </div>
+</section>
+
+<section class="s" id="jansen">
+  <h3><span class="k">B3</span>An exact solver instead of animation: the Strandbeest leg</h3>
+  <p class="sub">From <code>strandbeest-shared/jansen.js</code>: Theo Jansen's 11 “holy numbers” plus a 15-unit crank. Each joint is where two circles intersect: it sits at a known distance from two joints already solved. Five intersections solve the whole leg for any crank angle. There's no inverse kinematics, physics or keyframing. Turn the crank and choose a joint to see its two circles.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="jan-cv"></canvas>
+    <div class="readouts" id="jan-ro"></div>
+    <div class="ctrls">
+      <button class="btn acc" id="jan-play">❚❚ Pause</button>
+      <div class="rng">crank <input type="range" id="jan-th" min="0" max="360" step="1" value="0"><output id="jan-th-o">0°</output></div>
+      <div class="seg" id="jan-joint"></div>
+      <label class="chk"><input type="checkbox" id="jan-trace" checked> foot path</label>
+      <label class="chk"><input type="checkbox" id="jan-lab"> link names</label>
+    </div>
+  </div>
+  <pre><code>// the two points at distance r0 from p0 and r1 from p1; pick chooses one
+const cc = (p0, r0, p1, r1, pick) => { … };
+export function solveLeg(th) {
+  const A = [m * Math.cos(th), m * Math.sin(th)];   // crank pin
+  const B = cc(A, j, PIVOT, b, hiY);
+  const C = cc(A, k, PIVOT, c, loY);
+  const D = cc(B, e, PIVOT, d, loX);
+  const E = cc(D, f, C, g, loX);
+  const F = cc(E, h, C, i, loY);                    // the foot
+  return {O: [0, 0], P: PIVOT, A, B, C, D, E, F};
+}</code></pre>
+</section>
+
+<section class="s" id="handoff">
+  <h3><span class="k">B4</span>Auto-tour ↔ visitor handoff</h3>
+  <p class="sub">From <code>live.js</code>. Left alone, the live page plays the <b>film's own <code>SCRIPT</code></b> as a tour, with a fake cursor that presses the real buttons. Any click, drag, wheel or key calls <code>takeOver()</code>. After 25 s with no input, <code>startTour()</code> runs again (6 s in this demo). The camera never jumps: each frame it eases toward its target with <code>k = 1 − e^(−dt/τ)</code>, using τ = 0.18 s on tour and 0.45 s when the visitor drives. Click the buttons, or drag the viewport.</p>
+  <div class="card" style="overflow:hidden">
+    <div class="grid2" style="gap:0">
+      <div class="hand" id="hand">
+        <canvas id="hand-cv"></canvas>
+        <div class="tc on" id="hand-chip"><i></i><span>AUTO TOUR · CLICK TO TAKE OVER</span></div>
+        <div class="ring" id="hand-ring"></div>
+        <div class="cur" id="hand-cur"><svg width="22" height="22" viewBox="0 0 34 34"><path d="M4 3 L30 13.5 L17.5 17.5 L13.5 30 Z" fill="#111" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div style="border-left:1px solid var(--line)"><svg id="hand-sm" viewBox="0 0 420 300" class="sm"></svg></div>
+    </div>
+    <div class="readouts" id="hand-ro"></div>
+  </div>
+</section>
+
+<section class="s" id="timeline">
+  <h3><span class="k">B5</span>The film is a script of operator moves</h3>
+  <p class="sub"><code>v8-shared/film.js</code> doesn't use keyframes. Its <code>SCRIPT</code> is nine moves an operator would make: switch the camera, track a cylinder, open the throttle. Each view is a function of the seconds since it started, and moving between views blends every camera parameter with a 1.6 s smootherstep. The RPM ramp changes how fast the crank turns, and the score places a thud on every firing (one every 90° of crank), so the beat speeds up when the throttle opens. Drag the playhead.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="tl-cv" style="cursor:ew-resize;touch-action:none"></canvas>
+    <div class="readouts" id="tl-ro"></div>
+    <div class="ctrls"><button class="btn acc" id="tl-play">▶ Play 1×</button><span class="why">Rows, top to bottom: camera view · tracked cylinder · RPM · score thuds (firings) and clicks (button presses) · where <code>--stills beats</code> would grab review frames (beat + 0.3 s)</span></div>
+  </div>
+  <pre><code>export const SCRIPT = [
+  {t: 0, cam: 'open'},   {t: 3.5, cam: 'cyl'},  {t: 6.9, track: 6},
+  {t: 9.7, cam: 'valley'}, {t: 12.1, rpm: [700, 2400, 1.4]},
+  {t: 14.7, cam: 'side'}, {t: 17.3, cam: 'front'}, {t: 19.9, cam: 'hero'}, {t: 22.5, track: 1},
+];</code></pre>
+</section>
+
+<!-- ============================================================ PART C -->
+<div class="part" id="c">
+  <div class="part-h"><span class="n">PART C</span><h2>Domain knowledge: rendering, UI, animation, audio</h2>
+  <p>The technical ideas the skill depends on, explained for when you build visual things yourself.</p></div>
+</div>
+
+<section class="s" id="pipeline">
+  <h3><span class="k">C1</span>What happens in one frame: the post-processing pipeline</h3>
+  <p class="sub">The V8 stage (<code>v8-shared/stage.js</code>) doesn't draw straight to the screen. An <code>EffectComposer</code> passes the image through several full-screen passes, each reading the previous pass's texture. Click a pass.</p>
+  <div class="card" style="overflow:hidden">
+    <div class="passes" id="passes"></div>
+    <div class="pad" style="border-top:1px solid var(--line)" id="pass-detail"></div>
+  </div>
+  <div class="card" style="overflow:hidden;margin-top:14px">
+    <div class="pad" style="padding-bottom:0"><div class="lbl">Tone mapping: why the output pass is needed</div>
+    <p class="why" style="margin:6px 0 0">Lighting is computed in linear <b>HDR</b>, where a softbox can be 3.4× brighter than white. A screen only shows 0–1. Tone mapping is the curve that squeezes the range. Clamping clips highlights to flat white. ACES Filmic (the kit's <code>stage3d.js</code>) rolls them off but shifts colours. Khronos PBR Neutral (the V8 stage) keeps base colours true up to about 0.8 and then compresses. After that comes the sRGB transfer curve, because displays expect gamma-encoded values.</p></div>
+    <canvas id="tm-cv"></canvas>
+    <div class="ctrls"><div class="rng">exposure <input type="range" id="tm-exp" min="0.25" max="3" step="0.05" value="1"><output id="tm-exp-o">1.00</output></div><span class="why">Strips: a scene ramp of linear radiance 0 → 4, run through each curve and then sRGB-encoded, in a warm material colour.</span></div>
+  </div>
+</section>
+
+<section class="s" id="cutaway">
+  <h3><span class="k">C2</span>Cutaways: clipping planes and stencil caps (live three.js)</h3>
+  <p class="sub">Rule 4: <i>"The part doing the work opens up."</i> The V8 has three cutaway modes: <b>glass</b> (see-through liners), <b>section</b> (everything past a plane through the tracked cylinder is removed) and <b>solid</b>. A clipping plane makes the GPU throw away every fragment on one side, which leaves the cut parts <b>hollow</b> because there's no geometry on the cut face. The fix is a <b>stencil cap</b>. Toggle caps off in section mode to see the hollow shells. Drag to orbit.</p>
+  <div class="card" style="overflow:hidden">
+    <div id="three-wrap"><div id="three-msg">Loading three.js…</div></div>
+    <div class="ctrls">
+      <div class="seg" id="cut-mode"><button class="btn" data-m="glass">Glass</button><button class="btn on" data-m="section">Section</button><button class="btn" data-m="solid">Solid</button></div>
+      <div class="rng">cut z <input type="range" id="cut-z" min="-0.7" max="0.7" step="0.01" value="0"><output id="cut-z-o">0.00</output></div>
+      <label class="chk"><input type="checkbox" id="cut-caps" checked> stencil caps</label>
+      <button class="btn" id="cut-play">❚❚ Pause crank</button>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card pad"><div class="lbl">How the stencil cap works</div>
+      <p class="why" style="margin:8px 0 0">Picture a ray from your eye through a pixel on the cut plane. If that pixel lies <i>inside</i> a solid, the ray leaves the clipped solid one more time than it enters, so it crosses one more back face than front face. Each solid is drawn a second time with colour writes off, adding +1 to the stencil buffer for every back face and −1 for every front face. Then a flat plane is drawn on the cut with <code>stencilFunc: NotEqual 0</code>, so it only shows where the count is non-zero. That's the solid interior. In <code>engine.js</code> these are the <i>"two stencil twins"</i> on every solid part.</p></div>
+    <div class="card pad"><div class="lbl">Gotchas from the skill</div>
+      <ul class="why" style="margin:8px 0 0;padding-left:18px">
+        <li><code>renderer.localClippingEnabled = true</code> lets clipping be set per material.</li>
+        <li>The render target needs a stencil buffer: <code>new WebGLRenderTarget(…, {stencilBuffer: true})</code>, because the composer draws off-screen.</li>
+        <li>Screen-space AO (GTAO) draws the scene again using its own normal material. That material needs the same <code>clippingPlanes</code>, or the cut-away half comes back as a <i>"pale ghost"</i>. <code>stage.setCut()</code> handles that.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section class="s" id="light">
+  <h3><span class="k">C3</span>Lighting a studio: softboxes, reflections, shadows</h3>
+  <p class="sub">Glossy parts get their look from what they <b>reflect</b>. <code>stage.js</code> builds a tiny scene of glowing rectangles (a 12×12 top box, two tall side strips and a low front strip), and <code>PMREMGenerator</code> bakes it into a pre-filtered environment map: one mip level per roughness. Each pixel below is computed from the same layout. Compare <i>full</i> with <i>plain</i>, and try the skill's rule <i>"roughness ≥ 0.45 and envMapIntensity ≈ 0.5 on big surfaces"</i>.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="sph-cv"></canvas>
+    <div class="ctrls">
+      <div class="seg" id="sph-studio"><button class="btn on" data-s="full">Studio: full</button><button class="btn" data-s="plain">plain</button></div>
+      <div class="rng">roughness <input type="range" id="sph-r" min="0.03" max="0.9" step="0.01" value="0.12"><output id="sph-r-o">0.12</output></div>
+      <div class="rng">envMapIntensity <input type="range" id="sph-e" min="0.2" max="2" step="0.05" value="1"><output id="sph-e-o">1.00</output></div>
+    </div>
+  </div>
+  <div class="card" style="overflow:hidden;margin-top:14px">
+    <div class="pad" style="padding-bottom:0"><div class="lbl">Shadow maps: Basic vs PCF vs VSM</div>
+    <p class="why" style="margin:6px 0 0">A shadow map is a depth picture taken from the light. Each pixel on the floor asks "was something closer to the light than me?" Asking once per pixel (<b>Basic</b>) gives stair-steps at the map's resolution. <b>PCF</b> asks several neighbours and averages, which keeps the edge crisp. <b>VSM</b> stores depth and depth², blurs them, and uses a statistical bound to get wide soft penumbrae. The V8 uses VSM with <code>radius 14</code>, <code>blurSamples 24</code> and a 4096² map. Its lowest tier falls back to <code>BasicShadowMap</code>.</p></div>
+    <canvas id="sh-cv"></canvas>
+    <div class="ctrls"><div class="rng">shadow mapSize <input type="range" id="sh-n" min="12" max="96" step="1" value="28"><output id="sh-n-o">28²</output></div><span class="why">(scaled down so the texels are visible)</span></div>
+  </div>
+</section>
+
+<section class="s" id="easing">
+  <h3><span class="k">C4</span>Easing, with numbers</h3>
+  <p class="sub">SKILL.md's "Taste, with numbers" gives the agent exact curves instead of words like "smooth": <b>entrances</b> <code>cubic-bezier(0.16, 1, 0.3, 1)</code>, <b>exits</b> <code>cubic-bezier(0.6, 0, 0.9, 0.35)</code> at half the entrance's length, <b>state to state</b> <code>cubic-bezier(0.65, 0, 0.35, 1)</code>, and linear only for continuous motion. The film code itself uses <b>smootherstep</b> (6u⁵ − 15u⁴ + 10u³), which has zero velocity <i>and</i> zero acceleration at both ends, so camera blends never jerk.</p>
+  <div class="card" style="overflow:hidden">
+    <div class="grid2" style="gap:0">
+      <canvas id="ez-plot"></canvas>
+      <canvas id="ez-run" style="border-left:1px solid var(--line)"></canvas>
+    </div>
+    <div class="ctrls"><button class="btn acc" id="ez-play">▶ Play</button><div class="rng">entrance length <input type="range" id="ez-dur" min="0.3" max="2" step="0.05" value="0.9"><output id="ez-dur-o">0.90 s</output></div><span class="why">Right: a panel enters, holds for <span class="mono">1 s + 0.25 s/word</span> (the skill's reading-time rule), and exits in half the time.</span></div>
+  </div>
+</section>
+
+<section class="s" id="perf">
+  <h3><span class="k">C5</span>Performance: frame budgets, quality tiers, shader warm-up</h3>
+  <p class="sub">At 60 fps a frame has 16.7 ms. <code>live.js</code> watches its own frame time. After a 0.6 s settle, it averages over windows of at least 0.5 s and 6 frames. If the average is over 22 ms (below about 45 fps), the window counts as slow, and one slow window (two after the first 6 s) drops a quality tier. The tier never goes back up. Drag the GPU slider to simulate a laptop's integrated GPU.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="pf-cv"></canvas>
+    <div class="grid2" style="gap:0;border-top:1px solid var(--line)">
+      <div class="pad"><table class="tier-t" id="pf-tiers"></table></div>
+      <div style="border-left:1px solid var(--line)"><div class="log" id="pf-log" style="border-top:0;max-height:170px"></div></div>
+    </div>
+    <div class="ctrls"><div class="rng">GPU <input type="range" id="pf-m" min="0.6" max="3.6" step="0.05" value="0.9"><output id="pf-m-o">desktop</output></div><button class="btn" id="pf-reset">Reload page (reset tier)</button></div>
+  </div>
+  <div class="card" style="overflow:hidden;margin-top:14px">
+    <div class="pad" style="padding-bottom:0"><div class="lbl">Shader warm-up (<code>kit/warm.js</code>)</div>
+    <p class="why" style="margin:6px 0 0">three.js compiles a shader program the first time something draws with it, and the first frame waits for each one in turn, which can freeze the page for 1–2 s on a phone. <code>warmComposer()</code> calls <code>renderer.compileAsync()</code> for the scene <i>and</i> every post-pass material (which <code>compileAsync</code> never sees on its own). With <code>KHR_parallel_shader_compile</code> they all compile at once, off the main thread, before the first frame.</p></div>
+    <div class="warm" id="warm"></div>
+    <div class="ctrls"><button class="btn acc" id="warm-play">▶ Replay</button></div>
+  </div>
+</section>
+
+<section class="s" id="overlay">
+  <h3><span class="k">C6</span>The overlay: a fixed canvas, scaled, with leaders into 3D</h3>
+  <p class="sub">The UI around the machine (<code>console.js</code>) is plain DOM and SVG laid out at a <b>fixed 1600 × 900 CSS px</b>. <code>live.js</code> scales the whole <code>#app</code> with one CSS transform, <code>scale = min(innerWidth/1600, innerHeight/900)</code>, so the layout never reflows and the film and the page look identical. Callout <b>leaders</b> connect a fixed label to a moving 3D point. Every frame, the point is projected to screen pixels (<code>stage.project()</code>), and the SVG line is redrawn to that spot.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="ov-cv"></canvas>
+    <div class="readouts" id="ov-ro"></div>
+  </div>
+  <pre><code>// stage.js: world point → CSS px. Returns null when the point is behind the camera.
+const project = (x, y, z) => {
+  pv.set(x, y, z).project(camera);          // → normalised device coords, −1..1
+  if (pv.z > 1) return null;
+  return [(pv.x * 0.5 + 0.5) * size.w, (-pv.y * 0.5 + 0.5) * size.h];   // y flips: NDC up, CSS down
+};</code></pre>
+</section>
+
+<section class="s" id="sound">
+  <h3><span class="k">C7</span>Sound from the same model</h3>
+  <p class="sub"><code>v8-shared/score.py</code> runs the crank model again in Python. It integrates the same RPM curve at the same 1/20 playback and places a soft 62 Hz thud on every power stroke, plus a click on every button press and a rush of air under the throttle drag. The <code>sfx/</code> engine is pure Python with no dependencies. It synthesises at 48 kHz, measures loudness with ITU-R BS.1770 (K-weighting, gating) and masters to <b>−14 LUFS</b>, the level streaming platforms normalise to, with a true peak ≤ −2 dBFS so AAC encoding won't clip. Press play to hear the thud-and-click layer (no autoplay). The thud is pitched up here so laptop speakers can play it.</p>
+  <div class="card" style="overflow:hidden">
+    <canvas id="snd-cv"></canvas>
+    <div class="ctrls"><button class="btn acc" id="snd-play">▶ Play 26 s</button><span class="why">Sound rules from SKILL.md: <i>every time comes from the timeline, never a typed number</i> · <i>accent, never narrate: continuous motion stays silent</i> · <i>one key for every tonal sound</i>.</span></div>
+  </div>
+</section>
+
+<section class="s" id="traps">
+  <h3><span class="k">C8</span>The three.js traps the examples already hit</h3>
+  <p class="sub">SKILL.md ends its technical section with bugs the author ran into. It costs only a few lines and saves the agent hours. Here's <i>why</i> each one happens.</p>
+  <div class="grid2" id="trap-grid"></div>
+</section>
+
+<section class="s" id="template">
+  <h3><span class="k">→</span>Steal this structure for your own complex skill</h3>
+  <p class="sub">teardown's shape, generalised. It fits any skill where the output is an artifact whose quality the agent has to check: reports, slide decks, data pipelines, UI, video.</p>
+  <div class="grid2">
+<pre><code>my-skill/
+├─ SKILL.md            # trigger description + playbook
+│                      #   first run · examples table · file roles
+│                      #   numbered rules · contracts · commands
+│                      #   review loop + checklist + stop rule
+│                      #   known traps · taste as numbers
+├─ paths.mjs           # every binary / dir, env-overridable
+├─ tools/
+│  ├─ build.*          # deterministic: source → artifact
+│  ├─ render.*         # artifact → something the model can SEE
+│  └─ check.*          # contracts enforced by code, not prose
+├─ kit/                # shared runtime the examples import
+└─ examples/
+   ├─ a-simple/        # 2–3 complete, *diverse* worked examples
+   ├─ b-medium/        #   the agent copies the closest one
+   └─ c-hard/</code></pre>
+    <div class="card pad">
+      <div class="lbl">Checklist when you write one</div>
+      <ol class="why" style="margin:10px 0 0;padding-left:20px;line-height:1.75">
+        <li>Write the <code>description</code> as the phrases users will actually say.</li>
+        <li>Can every mechanical step be a script? Make it one.</li>
+        <li>What's the <b>one contract</b> that keeps everything in sync? Name it, and check it in code.</li>
+        <li>How will the model <b>see</b> its output? Ship a tool that turns output into images or text.</li>
+        <li>Write the review checklist and the <b>stop condition</b>.</li>
+        <li>Turn every taste word ("smooth", "readable") into a number.</li>
+        <li>Ship examples that cover different shapes of the problem, not three of the same.</li>
+        <li>Keep a "traps" list and add to it after every painful bug.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<div class="foot">Explainer by Claude for skill-explainers · source analysed: <a href="https://github.com/elvarofficial/teardown">elvarofficial/teardown</a> @ e7e668c (MIT). Formulas in the demos are ported from <code>v8-shared/kin.js</code>, <code>strandbeest-shared/jansen.js</code>, <code>v8-shared/film.js</code>, <code>v8-shared/live.js</code> and <code>v8-shared/score.py</code>. The lighting, shadow and tone-mapping canvases are simplified illustrations.</div>
+</main>
+
+<script>
+/* ======================================================================= shared helpers */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const clamp01 = (x) => clamp(x, 0, 1);
+const smoother = (x) => { const u = clamp01(x); return u * u * u * (u * (u * 6 - 15) + 10); };
+const ss = (a, b, t) => smoother((t - a) / (b - a));
+const mod = (a, m) => ((a % m) + m) % m;
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// canvas with DPR and a height that follows its width
+const redrawers = [];
+function makeCanvas(cv, heightFn, draw) {
+  const st = {g: cv.getContext('2d'), w: 0, h: 0, draw};
+  const fit = () => {
+    const w = cv.clientWidth || cv.parentElement.clientWidth;
+    if (w < 40) return;
+    const h = Math.round(typeof heightFn === 'function' ? heightFn(w) : heightFn);
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px';
+    st.g.setTransform(dpr, 0, 0, dpr, 0, 0); st.w = w; st.h = h; st.dpr = dpr;
+    draw(st);
+  };
+  new ResizeObserver(fit).observe(cv);
+  st.redraw = () => { if (st.w >= 40) draw(st); };
+  redrawers.push(st.redraw);
+  fit();
+  return st;
+}
+// run an rAF loop only while the element is on screen
+function loopWhenVisible(el, tick) {
+  let on = false, raf = 0, last = 0;
+  const f = (now) => { const dt = Math.min(0.1, (now - last) / 1000); last = now; tick(dt, now); if (on) raf = requestAnimationFrame(f); };
+  new IntersectionObserver((es) => {
+    const vis = es[0].isIntersecting;
+    if (vis && !on) { on = true; last = performance.now(); raf = requestAnimationFrame(f); }
+    else if (!vis) { on = false; cancelAnimationFrame(raf); }
+  }, {rootMargin: '100px'}).observe(el);
+}
+const font = (w, px, mono) => `${w} ${px}px ${mono ? "'JetBrains Mono',monospace" : 'Inter,sans-serif'}`;
+
+// theme toggle
+(() => {
+  const root = document.documentElement;
+  let saved = null; try { saved = localStorage.getItem('se-theme'); } catch (e) {}
+  if (saved) root.dataset.theme = saved;
+  $('#theme').addEventListener('click', () => {
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('se-theme', root.dataset.theme); } catch (e) {}
+    redrawers.forEach((r) => r()); dispatchEvent(new Event('themechange'));
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { redrawers.forEach((r) => r()); dispatchEvent(new Event('themechange')); });
+})();
+// nav highlight
+(() => {
+  const links = $$('#navlinks a');
+  const map = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    if (e.isIntersecting) { links.forEach((l) => l.classList.remove('on')); const a = map.get(e.target.id); if (a) { a.classList.add('on'); a.scrollIntoView({block: 'nearest', inline: 'nearest'}); } }
+  }), {rootMargin: '-45% 0px -50% 0px'});
+  map.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+})();
+
+/* ======================================================================= hero flow */
+(() => {
+  const nodes = [
+    ['“How does X work?”', 'you ask', 'k-asset'],
+    ['SKILL.md', 'agent reads', 'k-instr'],
+    ['my-machine/', 'agent writes', 'k-machine'],
+    ['build.mjs', 'esbuild', 'k-tool'],
+    ['machine.html', 'offline · <1 MB', 'k-entry'],
+    ['capture.mjs', 'Playwright', 'k-tool'],
+    ['film.mp4', '60 fps + score', 'k-sound'],
+  ];
+  const svg = $('#flow');
+  const draw = () => {
+    const W = 1080, n = nodes.length, gap = 14, bw = (W - 40 - gap * (n - 1)) / n;
+    let s = '';
+    nodes.forEach(([t, sub, k], i) => {
+      const x = 20 + i * (bw + gap);
+      s += `<rect x="${x}" y="38" width="${bw}" height="64" rx="9" fill="none" stroke="var(--${k})" stroke-width="1.5"/>`;
+      s += `<rect x="${x}" y="38" width="5" height="64" rx="2" fill="var(--${k})"/>`;
+      s += `<text x="${x + bw / 2 + 2}" y="66" text-anchor="middle" font-family="${i === 0 ? 'Inter' : 'JetBrains Mono'}" font-size="${i === 0 ? 12 : 13}" font-weight="600" fill="var(--ink)">${esc(t)}</text>`;
+      s += `<text x="${x + bw / 2 + 2}" y="86" text-anchor="middle" font-family="Inter" font-size="11" fill="var(--mute)">${esc(sub)}</text>`;
+      if (i < n - 1) s += `<path d="M${x + bw + 2} 70 h${gap - 4}" stroke="var(--faint)" stroke-width="1.5" marker-end="url(#ah)"/>`;
+    });
+    // review loop arc from capture back to my-machine
+    const xa = 20 + 2 * (bw + gap) + bw / 2, xb = 20 + 5 * (bw + gap) + bw / 2;
+    s += `<path d="M${xb} 104 C ${xb} 132, ${xa} 132, ${xa} 104" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ahr)"/>`;
+    s += `<text x="${(xa + xb) / 2}" y="132" text-anchor="middle" font-family="Inter" font-size="11.5" font-weight="600" fill="var(--accent)" dy="30">review loop: stills sheet → read → fix → rebuild</text>`;
+    s += `<text x="20" y="22" font-family="JetBrains Mono" font-size="11" font-weight="600" letter-spacing="1.2" fill="var(--mute)">WHAT ONE REQUEST BECOMES</text>`;
+    svg.innerHTML = `<defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--faint)"/></marker><marker id="ahr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--accent)"/></marker></defs>` + s;
+  };
+  draw();
+})();
+
+/* ======================================================================= A1 file tree */
+const KINDS = {
+  instr: ['Instructions (agent reads)', 'k-instr'],
+  tool: ['Deterministic tool (agent runs)', 'k-tool'],
+  kit: ['Runtime kit (browser runs)', 'k-kit'],
+  machine: ['Example machine (agent copies)', 'k-machine'],
+  entry: ['Entry / data', 'k-entry'],
+  sound: ['Sound engine (Python)', 'k-sound'],
+  asset: ['Assets / config / human docs', 'k-asset'],
+};
+const FILES = [
+  {d: ''},
+  {p: 'SKILL.md', k: 'instr', size: '11.7 KB', who: 'Claude (loaded when the description matches)', job: 'The only file that enters Claude\'s context automatically. The frontmatter <code>description</code> decides when the skill triggers; the body is the playbook: setup, the 3 examples, the file roles, 7 rules, live-page rules, the <code>render(t)</code> contract, commands, the review loop and checklist, three.js traps, sound rules, and taste as numbers. See A2 for its anatomy.', ex: `---\nname: teardown\ndescription: Build an interactive 3D simulator of a real machine or mechanism (an engine,\n  a landing gear, a walking linkage, a pump, a gearbox) as one offline HTML page … Use when\n  someone asks how a machine works, wants a "visual explainer", a "simulator", a "cutaway",\n  an "exploded view" or an "interactive 3D lesson" …\n---`},
+  {p: 'README.md', k: 'asset', size: '2.2 KB', who: 'Humans on GitHub', job: 'Install command (<code>npx skills add elvarofficial/teardown -g -a claude-code</code>), example prompts, a "what is inside" table, and credits. It has a different audience from SKILL.md: README sells the skill and explains install, SKILL.md tells the agent how to work.'},
+  {p: 'package.json', k: 'asset', size: '0.5 KB', who: 'npm', job: 'Pins exact versions: <code>three 0.186.1</code>, <code>esbuild 0.28.1</code>, <code>playwright 1.58.2</code>, Inter and JetBrains Mono fonts. Pinning matters because the agent will write three.js code against what it expects the API to be.'},
+  {p: 'paths.mjs', k: 'tool', size: '1.7 KB', who: 'every Node tool', job: 'One place for every external dependency: <code>FFMPEG</code>, <code>FFPROBE</code>, <code>PYTHON</code>, <code>CHROMIUM</code>, <code>TEARDOWN_DEPS</code>, <code>TEARDOWN_OUT</code>, each overridable with an env var. Paths are resolved from this file, so the skill works wherever it is installed. It also holds the Chromium GPU flags that make headless capture use the real GPU instead of a software rasteriser.', ex: `export const CHROMIUM_ARGS = [\n  ...(process.platform === 'win32' ? ['--use-angle=d3d11'] : []),\n  '--force_high_performance_gpu', '--ignore-gpu-blocklist',\n  '--enable-gpu-rasterization', '--enable-webgl', '--hide-scrollbars',\n];\nexport const OUT = path.resolve(process.env.TEARDOWN_OUT || 'teardown-out');`},
+  {p: 'sheet.mjs', k: 'tool', size: '4.4 KB', who: 'Claude, at the end of the review loop', job: 'Contact sheets from a finished MP4 via ffmpeg: every timeline beat (+0.3 s so motion settles), exact timestamps, or every N seconds over a range. Each tile is labelled <code>t=</code>. This is how the agent "watches" what the <i>encoder</i> actually wrote.', ex: `node sheet.mjs --video f.mp4 --timeline timeline.json   every beat, settled (+0.3s)\nnode sheet.mjs --video f.mp4 --from 3 --to 5 --every 0.2   scrub a transition`},
+  {p: 'wave.mjs', k: 'tool', size: '3.0 KB', who: 'Claude, sound check', job: 'Draws the audio waveform as a PNG with every timeline beat as a coral line, then measures integrated loudness and true peak with ffmpeg\'s <code>ebur128</code>. It warns if the level is more than ±1 LU off −14 LUFS. The agent can\'t hear, but it can check that every hit lines up with a beat line.'},
+  {p: 'run_sfx.py', k: 'sound', size: '0.2 KB', who: 'Claude', job: 'A tiny launcher that puts the skill folder on <code>sys.path</code> and runs <code>sfx.__main__</code>, so <code>python run_sfx.py &lt;score.py&gt;</code> works from any working directory.'},
+  {d: 'sfx/'},
+  {p: 'sfx/dsp.py', k: 'sound', size: '13.7 KB', who: 'score.py via score_kit', job: 'Pure-Python DSP: band-limited oscillators (PolyBLEP saw and pulse), biquad and state-variable filters, a Schroeder/Freeverb-style reverb (comb and allpass), a compressor, softclip, bitcrush, tape-stop. All deterministic, standard library only.'},
+  {p: 'sfx/loudness.py', k: 'sound', size: '2.3 KB', who: 'mix.py', job: 'ITU-R BS.1770-4 integrated loudness with EBU R128 gating (K-weighting = high-shelf + high-pass biquads) and true-peak estimation by 4× oversampling with windowed-sinc kernels.'},
+  {p: 'sfx/mix.py', k: 'sound', size: '4.7 KB', who: 'score.py', job: 'The mix bus. <code>mix.put(t, sound, gain)</code> places a sound at a time from the timeline, then mastering normalises to the target LUFS under a true-peak ceiling.'},
+  {p: 'sfx/score_kit.py', k: 'sound', size: '7.9 KB', who: 'the 3 score.py files', job: 'Reusable musical pieces: <code>bed()</code> (chord pad, bass, drums at a BPM), <code>thud</code>, <code>motor</code>, <code>airy</code>, <code>rumble</code>, <code>rattle</code>, <code>hiss</code>, <code>chords("Am9:A2 E3 G3 B3 C4/A1", …)</code>, <code>hz("E5")</code>, and timeline helpers <code>spans()</code> and <code>rising()</code>.'},
+  {p: 'sfx/synth.py', k: 'sound', size: '10.1 KB', who: 'score_kit', job: 'Instrument voices (<code>click</code>, epiano, pads…) built on dsp.py.'},
+  {p: 'sfx/samples/*.ogg', k: 'asset', size: '12 files', who: 'sample()', job: 'CC0 Freesound recordings (typing, pops, room tone, VHS) with provenance in <code>SOURCES.md</code>.'},
+  {d: 'sims/'},
+  {p: 'sims/build.mjs', k: 'tool', size: '5.8 KB', who: 'Claude, after every edit', job: 'Bundles <code>&lt;machine&gt;/main.js</code> with esbuild into <b>one self-contained HTML file</b>: three.js, the kit CSS and both fonts inlined as base64 woff2. It opens from <code>file://</code> and works offline. An esbuild plugin resolves <code>teardown-kit/…</code> imports to <code>sims/kit/</code>, so a machine written <i>outside</i> the skill folder can still import the kit. <code>build.json</code> can swap heavy models for light ones or keep them outside the page to stay under 1 MB.', ex: `const kitPlugin = {\n  name: 'teardown-kit',\n  setup(b) {\n    b.onResolve({filter: /^teardown-kit\\//}, (args) =>\n      ({path: path.join(HERE, 'kit', args.path.slice('teardown-kit/'.length))}));\n  },\n};`},
+  {p: 'sims/capture.mjs', k: 'tool', size: '9.4 KB', who: 'Claude, review + final render', job: 'Launches headless Chromium (Playwright) with the GPU flags, sets <code>window.__CAPTURE</code>, waits for <code>SIM.ready</code> and fonts, and prints the GPU it got. Then, for every frame, it calls <code>SIM.render(t)</code>, takes a JPEG screenshot and pipes it to <code>ffmpeg -f image2pipe … libx264 -crf 16</code>. <code>--still T</code> writes one PNG; <code>--stills beats|every:0.2|0,4,9</code> writes a tiled review sheet with a <code>t=</code> label per tile.', ex: `for (let i = 0; i < frames; i++) {\n  await draw(from + i / fps);\n  const buf = await page.screenshot({type: 'jpeg', quality: 97});\n  if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));\n}`},
+  {p: 'sims/beats.py', k: 'tool', size: '7.2 KB', who: 'capture.mjs --music', job: 'Analyses a music track (tempo, beats, downbeats, kicks, energy per bar, the drop) so the kit\'s <i>director</i> can cut to the music. This comes from the claude-motion parent project; the teardown films use their own synthesised score instead.'},
+  {d: 'sims/kit/'},
+  {p: 'sims/kit/runtime.js', k: 'kit', size: '5.4 KB', who: 'every film page', job: '<code>runSim(defaults, setup)</code>: merges config (BASE ← sim defaults ← <code>window.__SIM_CONFIG</code> ← <code>?config=</code> ← query params), creates the canvas and HUD, then either loops with rAF (live) or exposes <code>window.SIM.render(t)</code> (capture). This is where the <code>render(t)</code> contract is enforced.', ex: `window.SIM = { cfg, duration: cfg.duration, fps: cfg.fps, ready: true,\n  render: (t) => { cur = t; draw(t); } };\nif (capture) { draw(0); return; }   // capture never loops`},
+  {p: 'sims/kit/warm.js', k: 'kit', size: '3.9 KB', who: 'live pages', job: 'Shader warm-up: compiles every program (the scene and every post-pass material) in parallel before the first frame. See C5.'},
+  {p: 'sims/kit/util.js', k: 'kit', size: '2.7 KB', who: 'everything', job: 'Pure helpers: <code>clamp01</code>, <code>lerp</code>, easing functions, <code>prog</code>, the seeded PRNG <code>rng(seed)</code> (mulberry32), the stateless <code>hash(n)</code>, <code>keyed()</code> keyframes, and a deep <code>merge</code>.'},
+  {p: 'sims/kit/stage3d.js', k: 'kit', size: '3.9 KB', who: 'generic sims', job: 'A default renderer + scene + camera + bloom (ACES tone mapping). The camera\'s projection centre is shifted with <code>setViewOffset</code> so the subject sits in the middle of the visible area between HUD bars. It also supports the director\'s crisp "crop" zooms.'},
+  {p: 'sims/kit/director.js', k: 'kit', size: '11.7 KB', who: 'music-cut films (off in teardown)', job: 'Inherited from claude-motion: cuts between shots on bar lines, punch-ins on kicks, shake and flash on the drop, beat-synced captions. All the teardown examples set <code>director: {enabled: false}</code> because a machine explainer needs calm operator moves, not music-video edits.'},
+  {p: 'sims/kit/hud.js · style.css', k: 'kit', size: '13.8 KB', who: 'generic sims', job: 'Generic terminal-style HUD chrome. Disabled in the teardown films (<code>hud: {enabled: false}</code>), where each machine draws its own console.'},
+  {d: 'sims/v8-shared/  (the machine)'},
+  {p: 'v8-shared/kin.js', k: 'machine', size: '4.1 KB', who: 'engine, console, film', job: '<b>The math.</b> Real dimensions in mm, with <b>no three.js</b>. A cross-plane crank, firing order 1-8-4-3-6-5-7-2, exact slider-crank piston position, valve-lift bumps over the 720° cycle, and a polytropic chamber pressure model for the indicator diagram. Every pose and readout is a function of the crank angle. See B1.', ex: `export const E = {bore: 101.6, r: 44.5, rod: 145, comp: 30, deck: 226,\n  pinZ: [168, 56, -56, -168], rodOff: 11, cr: 10.2};\nexport const FIRE = {1: 0, 8: 90, 4: 180, 3: 270, 6: 360, 5: 450, 7: 540, 2: 630};`},
+  {p: 'v8-shared/engine.js', k: 'machine', size: '29.5 KB', who: 'stage.js', job: '<b>The geometry, built in code</b>: lathed liners and pistons, rods, a crank, cams, gears, the flywheel, the charge inside glass liners, and red flow arrows. Materials (glass is <code>MeshPhysicalMaterial</code> at 0.16 opacity). The cutaway: a <code>CLIP</code> plane plus stencil section caps. <code>update(th, ops)</code> poses everything for a crank angle.'},
+  {p: 'v8-shared/stage.js', k: 'machine', size: '7.5 KB', who: 'film.js, live.js', job: '<b>Studio and post.</b> A pale gradient backdrop, a PMREM environment from 4 emissive softboxes, a VSM-shadowed sun, a shadow-catcher floor with <code>polygonOffset</code>, and an EffectComposer (Render → GTAO, with the floor hidden from it → Output). <code>frame(th, cam)</code> draws one frame; <code>setQuality()</code> applies a tier; <code>project()</code> gives the overlay its leaders.'},
+  {p: 'v8-shared/console.js', k: 'machine', size: '26.3 KB', who: 'film.js, live.js', job: '<b>The overlay.</b> A fixed 1600×900 DOM/SVG layout: rev counter, slider-crank and cross-plane panels, the transport, the charge legend, valve timing and indicator diagram, camera / cutaway / overlay toggles, firing order, and callouts with leaders. It also exposes button positions (<code>ui.spots</code>, <code>speedKnob()</code>, <code>foSpot()</code>) so the tour cursor can aim at them.'},
+  {p: 'v8-shared/film.js', k: 'machine', size: '10.3 KB', who: 'v8-film, and live.js for the tour', job: '<b>The film</b>: <code>SCRIPT</code> of operator moves, <code>VIEW_FN</code> camera views as functions of time-since-start, <code>camAt()</code> blending, the integrated crank table <code>TH[]</code>, the cursor path <code>makeCursor()</code>, and <code>render(t)</code>. It is a pure function of t. See B5.'},
+  {p: 'v8-shared/live.js', k: 'machine', size: '13.9 KB', who: 'v8-live', job: '<b>The page you drive.</b> The same stage and console in real time: buttons, sliders, orbit, wheel zoom, keys, quality tiers, and the auto-tour that replays <code>film.js</code>\'s SCRIPT and hands control over. See B4 and C5.'},
+  {p: 'v8-shared/score.py', k: 'sound', size: '2.0 KB', who: 'run_sfx.py', job: '<b>The score</b>: an Am9 chord bed at 92 bpm, a thud on every power stroke (it re-integrates the RPM curve, so the beat tightens with the throttle), clicks on button presses, and air under the drag. See C7.'},
+  {d: 'sims/v8-film/ · v8-live/  (entries)'},
+  {p: 'v8-film/main.js', k: 'entry', size: '0.1 KB', who: 'build.mjs', job: 'A three-line entry: <code>import {run} from \'../v8-shared/film.js\'; run();</code>. Thin entries mean <code>build.mjs</code> can bundle "the film" and "the live page" from one shared machine.'},
+  {p: 'v8-film/timeline.json', k: 'entry', size: '16 B', who: 'capture --stills beats, score.py, sheet, wave', job: 'Meant to be the one source of beat times. Here it\'s only <code>{"duration":26}</code>; see the critique in A4.'},
+  {p: 'v8-live/main.js', k: 'entry', size: '0.2 KB', who: 'build.mjs', job: '<code>runLive()</code>. One line, so the page you drive and the film you record can never be different machines.'},
+  {d: 'sims/cessna-* · strandbeest-*'},
+  {p: 'cessna-shared/gear.js …', k: 'machine', size: '~76 KB', who: 'copy source', job: 'The Cessna 337 main gear. One degree of freedom (stroke 0..1) poses everything: a 201 mm rack turns a 32-tooth, 4 mm-module pinion through exactly 180° (32 × 4 = 128 mm pitch diameter; half its circumference is 201 mm). <code>flight.js</code> describes takeoff and landing as functions of time.'},
+  {p: 'strandbeest-shared/jansen.js …', k: 'machine', size: '~102 KB', who: 'copy source', job: 'Theo Jansen\'s Strandbeest: 20 legs on one crankshaft, driven by wind (crank speed integrated from it). An exact linkage solver in 67 lines, instanced tubes, foot traces, and a contact chart. See B3.'},
+  {d: 'docs/'},
+  {p: 'docs/*.gif · *.jpg', k: 'asset', size: '3.6 MB', who: 'README', job: 'Screenshots for the README. They never reach the agent.'},
+];
+(() => {
+  const leg = $('#tree-legend');
+  leg.innerHTML = Object.values(KINDS).map(([n, c]) => `<span><i class="dot" style="background:var(--${c})"></i>${n}</span>`).join('');
+  const list = $('#tree-list'), det = $('#tree-detail');
+  let sel = 1;
+  const show = (i) => {
+    sel = i; const f = FILES[i]; const [kn, kc] = KINDS[f.k];
+    $$('.row', list).forEach((r) => r.classList.toggle('on', +r.dataset.i === i));
+    det.innerHTML = `<div class="lbl" style="color:var(--${kc})">${kn}</div><h4>${esc(f.p)}</h4>
+      <span class="tag">${f.size}</span><span class="tag">read/run by: ${esc(f.who)}</span>
+      <p style="font-size:14.5px;margin:14px 0 0">${f.job}</p>${f.ex ? `<pre><code>${esc(f.ex)}</code></pre>` : ''}`;
+  };
+  list.innerHTML = FILES.map((f, i) => f.d !== undefined
+    ? `<div class="row dir">${f.d ? '▾ ' + esc(f.d) : '▾ teardown/'}</div>`
+    : `<div class="row" data-i="${i}" style="padding-left:${f.p.includes('/') ? 30 : 22}px"><i class="dot" style="background:var(--${KINDS[f.k][1]})"></i>${esc(f.p.split('/').pop())}</div>`).join('');
+  list.addEventListener('click', (e) => { const r = e.target.closest('.row[data-i]'); if (r) show(+r.dataset.i); });
+  show(sel);
+  const B = [['SKILL.md', 11.7, 'k-instr'], ['tools', 28.5, 'k-tool'], ['kit', 44, 'k-kit'], ['V8', 94, 'k-machine'], ['Cessna', 76.2, 'k-machine'], ['Strandbeest', 102.3, 'k-machine'], ['sfx', 41.4, 'k-sound']];
+  const tot = B.reduce((a, b) => a + b[1], 0);
+  $('#bytes-bar').innerHTML = B.map(([n, v, c], i) => `<div title="${n}: ${v} KB" style="width:${(v / tot) * 100}%;background:var(--${c});${i === 4 ? 'opacity:.8' : i === 5 ? 'opacity:.62' : ''}">${v / tot > 0.06 ? n : ''}</div>`).join('');
+})();
+
+/* ======================================================================= A2 anatomy */
+(() => {
+  const A = [
+    ['Frontmatter description', 'name + one long trigger sentence', `It lists the concrete nouns (<i>engine, landing gear, walking linkage, pump, gearbox</i>) and the phrases users actually type (<i>"visual explainer", "simulator", "cutaway", "exploded view", "interactive 3D lesson"</i>), plus the intent ("wants a 3D object shown working rather than described").`, `This is the only part Claude sees before deciding to load the skill. A vague description means the skill never fires. Write it as a list of real user phrasings.`],
+    ['Opening paragraph + SKILL_DIR', '"One machine, one page."', `Three sentences of the product vision, then two variables everything else uses: <code>SKILL_DIR</code> (where this file lives) and <code>./teardown-out</code> (where outputs go).`, `A clear mental model up front lets the agent fill gaps sensibly. Naming the directories once makes every later command copy-pasteable from any working directory.`],
+    ['First run', 'npm install + playwright chromium; env overrides', `One command, plus which external tools are optional (ffmpeg only for video, Python only for sound) and how to repoint them (<code>FFMPEG</code>, <code>PYTHON</code>, <code>CHROMIUM</code>).`, `Agents fail on environment problems more than on logic. Saying what is required for which output stops it giving up when ffmpeg is missing but a page is all that's needed.`],
+    ['The 3 examples table', 'machine · what drives it · worth stealing', `V8 (crank angle), Cessna gear (a 0..1 stroke), Strandbeest (wind). The third column names the techniques to lift: cutaway modes, one DOF posing a whole mechanism, an exact linkage solver.`, `<b>Worked examples beat rules.</b> "Copy the closest one" gives the agent a working skeleton for the hardest parts. The three cover different kinds of input (rotation, linear stroke, an integrated external force), so most machines map onto one of them.`],
+    ['How a machine is built', 'a table of file → job', `kin.js (math, no three.js) · engine.js (geometry) · stage.js (studio and post) · console.js (overlay) · film.js (SCRIPT + render(t)) · live.js (interactive + auto tour) · score.py. It also explains how to build a machine outside the skill folder via <code>teardown-kit/</code> imports.`, `Separating concerns into files lets the agent change one thing (say, the camera) without touching the math. It also makes review targeted: if the gauge is wrong, look in kin.js.`],
+    ['Rules that decide whether it works', '7 numbered rules', `1 start from a reference · 2 real numbers, one source (with a worked check: 32 teeth × 4 mm = 128 mm; half the circumference = 201 mm) · 3 one input drives everything · 4 the part doing the work opens up · 5 light studio, one accent · 6 pick the camera for the mechanism · 7 fix collisions with a number, never hide them with the camera.`, `Each rule comes from a failure the author saw ("Machines invented from a sentence come out generic every time"). Giving the reason, not just the rule, lets the agent apply it to cases the author didn't foresee.`],
+    ['Live page rules', 'integrated GPU · warm shaders · < 1 MB', `Test on an integrated GPU (quality tiers), find the expensive shader first, warm shaders with <code>kit/warm.js</code>, and keep the page under 1 MB because link crawlers (X, Slack) give up on big pages.`, `These are non-functional requirements the agent can't discover by looking at its own output on a fast machine.`],
+    ['render(t) contract', 'a code skeleton + 4 bullets', `A minimal <code>runSim(DEFAULTS, async (...) =&gt; ({render(t), resize}))</code>, then the purity rules: no Math.random or Date, stateful things precomputed at load, beats in timeline.json, frame 0 is the thumbnail.`, `<b>A contract is what makes the tools work.</b> capture.mjs can only produce a correct video because render(t) is pure. Put the contract in code form so the agent pattern-matches it exactly.`],
+    ['Commands', 'build → stills → still → mp4 → score → mux → wave', `Seven exact command lines, plus a note on <code>--size</code> × <code>--dpr</code> (1600×900 at 1.2 = 1080p) and a diagnostic: "a software renderer means the GPU flags in paths.mjs did not take".`, `Exact commands remove guesswork about flags. The diagnostic line turns a confusing failure (slow, ugly capture) into a recognisable symptom with a known cause.`],
+    ['Review loop', '"You cannot watch the video; you can look at frames."', `1 a beats sheet · 2 read every tile against the checklist · 3 zoom into transitions (<code>every:0.2</code>) · 4 fix, rebuild, repeat · <b>stop when a full pass finds nothing</b> · 5 a final sheet from the encoded MP4.`, `<b>This is the most important idea in the skill.</b> It names the agent's limitation, gives it a tool that turns its output into something it can see, and sets an explicit stop condition. Without this, agents declare victory after the build succeeds.`],
+    ['Checklist', 'mechanism · composition · type · 3D · timing', `Concrete and checkable: "nothing important within 60 px of an edge", "keep emissive layers under 1.0", "roughness ≥ 0.45 … on big surfaces", "1 s for a short phrase plus 0.25 s per word beyond three".`, `A checklist with numbers can be verified against a screenshot. "Looks good" can't.`],
+    ['three.js traps', '5 bugs the examples hit', `Reversed smoothstep on ANGLE, a ShadowMaterial losing its depth test inside a render target, back-face culling of mirrored quads, NaN pixels through bloom, GTAO plus clipping planes.`, `Cheap to write and expensive to rediscover. Each one is a specific symptom → fix, so the agent can match a broken frame to its cause.`],
+    ['Sound', 'pure-Python synth on the timeline', `How to run it, what is in score_kit, and three rules: times come from the timeline, mastering is automatic (−14 LUFS), accent rather than narrate.`, `Audio is a domain where the agent has no feedback at all, so the skill moves almost everything into deterministic code and keeps the rules short and absolute.`],
+    ['Taste, with numbers', 'easing curves · 60–70 % fill · 34 px labels · one accent', `Exact cubic-bezier values for entrances, exits and state changes; the machine fills 60–70% of the viewport; labels never under 34 px on a 1080 canvas; "nothing dead-still: one element always alive".`, `<b>Taste can be written down.</b> Words like "elegant" give an average result; <code>cubic-bezier(0.16, 1, 0.3, 1)</code> gives the author's result.`],
+  ];
+  $('#anatomy-list').innerHTML = A.map(([t, s, what, why], i) => `<details class="an"${i === 9 ? ' open' : ''}><summary><span class="no">§${String(i + 1).padStart(2, '0')}</span><span class="t">${t}<small>${s}</small></span><span class="pl">+</span></summary>
+    <div class="body"><div class="lbl">What it says</div><p style="margin:4px 0 12px">${what}</p><div class="lbl" style="color:var(--accent)">Why it's there</div><p style="margin:4px 0 0">${why}</p></div></details>`).join('');
+})();
+
+/* ======================================================================= A3 stepper */
+(() => {
+  const S = [
+    ['agent', 'Trigger', 'User: <i>"Build me a simulator of a 4-stroke motorcycle engine I can take apart."</i> The words "simulator" and "take apart" match the description, so Claude loads SKILL.md into context.', null, 'SKILL.md'],
+    ['tool', 'First run', 'Install dependencies once, inside the skill folder. Afterwards pages need nothing; video needs ffmpeg; sound needs Python 3.', 'cd "$SKILL_DIR" && npm install && npx playwright install chromium', 'package.json, paths.mjs'],
+    ['agent', 'Find a reference and the real numbers', 'Rule 1 and Rule 2: a photo or a cutaway drawing, plus real dimensions (bore, stroke, rod length, tooth counts). Check one number by hand, the way the Cessna checks 32 teeth × 4 mm = 128 mm pitch diameter, half of whose circumference is the 201 mm stroke.', null, '(research)'],
+    ['agent', 'Copy the closest example', 'A single-cylinder engine is closest to the V8, so copy its 3 folders. For a machine outside the skill folder, make a folder with a <code>main.js</code> that imports the kit by name.', "import {runSim} from 'teardown-kit/runtime.js'", 'my-machine/main.js'],
+    ['agent', 'Write the math', 'One input (crank angle), real units, no three.js. Every pose and every readout is a function of that input.', 'export const piston = (th) => …;  export const pressure = (ps) => …;', 'kin.js'],
+    ['agent', 'Build the geometry and the stage', 'Lathed and extruded parts from code; <code>update(input)</code> poses them. A light studio with one accent, soft shadows, GTAO. Pick a camera that suits the mechanism (Rule 6).', null, 'engine.js, stage.js'],
+    ['agent', 'Overlay and film script', 'A fixed 1600×900 console reading the same math, then a <code>SCRIPT</code> of operator moves and a pure <code>render(t)</code>. Beat times go into timeline.json.', "{t: 3.5, cam: 'cyl'}, {t: 6.9, track: 6}, …", 'console.js, film.js, timeline.json'],
+    ['agent', 'Live page', 'The same machine in real time: buttons, sliders, orbit, quality tiers, and the auto-tour replaying the film\'s SCRIPT.', null, 'live.js, main.js'],
+    ['tool', 'Build', 'esbuild bundles everything into one offline HTML file (three.js and fonts inlined).', 'node "$SKILL_DIR/sims/build.mjs" ./my-machine-film', 'build.mjs → teardown-out/dist/*.html'],
+    ['tool', 'Render a review sheet', 'Headless Chromium renders one tile per timeline beat (+0.3 s), each labelled t=.', 'node "$SKILL_DIR/sims/capture.mjs" my-machine-film --size 1600x900 --dpr 1.2 --stills beats --cols 4 --out teardown-out/beats.png', 'capture.mjs'],
+    ['agent', 'Read the sheet → fix → back to Build', 'Claude <b>reads the PNG</b> against the checklist (parts touch and nothing passes through; one focal point; nothing clipped; bloom not eating detail; each state held long enough). It zooms in with <code>--stills every:0.2 --from A --to B</code> or <code>--still T</code>. <b>Stop when a full pass finds nothing.</b>', null, 'review loop ↺'],
+    ['tool', 'Capture the video', 'Frame by frame at 60 fps, piped to ffmpeg (x264, crf 16). The GPU name is printed; a software renderer means the flags didn\'t take.', 'node "$SKILL_DIR/sims/capture.mjs" my-machine-film --size 1600x900 --dpr 1.2 --out teardown-out/silent.mp4', 'capture.mjs'],
+    ['tool', 'Render the score', 'Pure-Python synthesis placed on the timeline, mastered to −14 LUFS.', 'python "$SKILL_DIR/run_sfx.py" "$SKILL_DIR/sims/my-machine-shared/score.py"', 'score.py → sfx/'],
+    ['tool', 'Mux and do the final review', 'Combine video and audio, then review what the <i>encoder</i> actually wrote: a contact sheet from the MP4 and a waveform with beat lines and loudness.', 'ffmpeg -y -i silent.mp4 -i score.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -shortest -movflags +faststart final.mp4\nnode "$SKILL_DIR/sheet.mjs" --video final.mp4 --timeline timeline.json\nnode "$SKILL_DIR/wave.mjs" final.mp4 --timeline timeline.json', 'sheet.mjs, wave.mjs'],
+  ];
+  let cur = 0;
+  const list = $('#steps'), body = $('#step-body');
+  list.innerHTML = S.map(([w, t], i) => `<button class="${w}" data-i="${i}"><span class="b">${i + 1}</span>${t}</button>`).join('');
+  const show = (i) => {
+    cur = clamp(i, 0, S.length - 1);
+    const [w, t, d, cmd, files] = S[cur];
+    $$('button', list).forEach((b, j) => { b.classList.toggle('on', j === cur); b.classList.toggle('done', j < cur); });
+    body.innerHTML = `<span class="who ${w}">${w === 'agent' ? '◆ agent · judgment' : '▶ tool · deterministic'}</span><h4>${cur + 1}. ${t}</h4><p style="margin:0 0 12px;font-size:15px">${d}</p>
+      ${cmd ? `<pre><code>${esc(cmd)}</code></pre>` : ''}<div class="lbl" style="margin-top:12px">Files</div><p class="mono" style="font-size:13px;margin:4px 0 0">${esc(files)}</p>
+      ${cur === 10 ? `<div class="note" style="margin-top:16px"><b>Why this works:</b> the agent can't watch video, but it can read images. capture.mjs turns "is the animation right?" into a tiled PNG it can actually check.</div>` : ''}`;
+    $('#st-pos').textContent = `${cur + 1} / ${S.length}`;
+    list.querySelector(`[data-i="${cur}"]`).scrollIntoView({block: 'nearest'});
+  };
+  list.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); });
+  $('#st-prev').onclick = () => show(cur - 1);
+  $('#st-next').onclick = () => show(cur === 10 ? 11 : cur + 1);
+  show(0);
+})();
+
+/* ======================================================================= A4 lessons */
+(() => {
+  const L = [
+    ['Write the description as the user\'s words', 'The description is the only thing that decides whether the skill loads. List the nouns and phrases people actually type, and state the intent the skill serves.', 'SKILL.md frontmatter: "visual explainer", "simulator", "cutaway", "exploded view"…'],
+    ['Prose for judgment, code for mechanics', 'Anything that must come out the same every time (bundling, capture, synthesis, mastering, contact sheets) is a script. SKILL.md only says when and why to run it. The agent spends its effort on the machine, not on ffmpeg flags.', '~12 KB of prose vs ~390 KB of code (A1).'],
+    ['Ship complete worked examples', 'Three working machines, each with a "worth stealing" note. Copying the closest example beats starting from rules, and diverse examples (rotation, stroke, wind) cover more new cases.', '"Copy the closest one when you start a new machine."'],
+    ['Make a contract the tools depend on', '<code>render(t)</code> is pure, and one input drives everything. Because of these two rules, the film, the live page, the score and the review sheets can’t drift. State the contract as code.', 'kit/runtime.js; the render(t) contract section.'],
+    ['Give the agent eyes', 'Say what the agent can\'t do ("You cannot watch the video") and ship a tool that turns the output into what it <i>can</i> read: tiled stills with timestamps, a waveform with beat lines, a printed GPU name.', 'capture.mjs --stills, sheet.mjs, wave.mjs.'],
+    ['Define the loop and when to stop', 'Render → read → fix → repeat, with an explicit exit: "Stop when a full pass finds nothing." And "Never report a machine as done without reading sheets of the current render."', 'Review loop section.'],
+    ['Turn taste into numbers', 'Exact easing curves, viewport fill, minimum label size, reading time per word, emissive limits, roughness floors. Numbers can be checked; adjectives can\'t.', '"Taste, with numbers" + checklist.'],
+    ['Explain the reason behind each rule', '"Pale backgrounds read in a feed; dark ones lose the first second." A rule with its reason can be applied to cases the author never saw; a bare rule only fits the cases it was written for.', 'All 7 rules carry their reason.'],
+    ['Keep a traps list', 'Platform bugs the author already hit, each as symptom → fix. A few lines of text that each save hours of debugging.', 'three.js traps section (C8).'],
+    ['Make it portable and overridable', 'Everything resolves from the skill folder, outputs go to <code>./teardown-out</code>, every binary can be overridden with an env var, and the kit is importable by name from anywhere.', 'paths.mjs, the teardown-kit/ esbuild plugin.'],
+  ];
+  $('#lesson-grid').innerHTML = L.map(([h, p, ev], i) => `<div class="card lesson"><div class="ln">LESSON ${String(i + 1).padStart(2, '0')}</div><h4>${h}</h4><p>${p}</p><div class="ev">In teardown: ${ev}</div></div>`).join('');
+})();
+
+/* ======================================================================= B1 crank (kin.js port) */
+const E = {bore: 101.6, r: 44.5, rod: 145, cr: 10.2};
+const STROKE = 2 * E.r, S_TDC = E.r + E.rod, S_BDC = E.rod - E.r;
+const STROKES = ['POWER', 'EXHAUST', 'INTAKE', 'COMPRESSION'];
+const strokeOf = (ps) => STROKES[Math.floor(mod(ps, 720) / 180)];
+const VALVE = {ex: [140, 380], in: [340, 580], lift: 10.5};
+const bump = (ps, [a, b]) => { const x = mod(ps - a, 720) / (b - a); return x >= 0 && x <= 1 ? Math.sin(Math.PI * x) ** 2 : 0; };
+const liftEx = (ps) => bump(ps, VALVE.ex), liftIn = (ps) => bump(ps, VALVE.in);
+const pinH = (ps) => { const a = (ps * Math.PI) / 180; return E.r * Math.cos(a) + Math.sqrt(E.rod * E.rod - (E.r * Math.sin(a)) ** 2); };
+const pistonFrac = (ps) => (S_TDC - pinH(ps)) / STROKE;
+const volume = (ps) => 1 + (E.cr - 1) * pistonFrac(ps);
+const pressure = (ps) => {
+  ps = mod(ps, 720); const V = volume(ps);
+  if (ps >= 360 && ps < 540) return 0.9;
+  if (ps >= 180 && ps < 360) return 1.1 + 0.4 * Math.max(0, 1 - (ps - 180) / 40);
+  if (ps >= 540) return Math.max(0.9, 0.95 * Math.pow(E.cr / V, 1.32));
+  const comp = 0.95 * Math.pow(E.cr / V, 1.32), burn = 54 * Math.pow(1 / V, 1.28), k = Math.min(1, ps / 10);
+  return Math.max(1.1, comp + (burn - comp) * (k * k * (3 - 2 * k)));
+};
+const chargeOf = (ps) => { ps = mod(ps, 720); if (ps < 60) return 2; if (ps < 360) return 3; if (ps < 540) return 0; return 1; };
+const STROKE_COL = {POWER: '--accent', EXHAUST: '--mute', INTAKE: '--blue', COMPRESSION: '--violet'};
+(() => {
+  let ps = 0, playing = !reduced, spd = 90;
+  const CH = ['--blue', '--violet', '--orange', '--faint'];
+  const CHN = ['air + fuel', 'compressed', 'combustion', 'exhaust'];
+  const ro = $('#crank-ro');
+  ro.innerHTML = ['stroke', 'ψ (cycle)', 'crank', 'piston from TDC', 'volume', 'pressure', 'exhaust valve', 'intake valve'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  const mech = makeCanvas($('#crank-mech'), (w) => clamp(w * 0.86, 320, 420), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const s = (h - 24) / 362, cx = w / 2, oy = h - 12 - 60 * s;
+    const Y = (mm) => oy - mm * s, X = (mm) => cx + mm * s;
+    const a = (ps * Math.PI) / 180, pin = pinH(ps), crown = pin + 28, deck = S_TDC + 28 + 9.7;
+    const ink = css('--ink'), line = css('--line'), mute = css('--mute'), surf = css('--surface2');
+    // head
+    g.fillStyle = surf; g.strokeStyle = mute; g.lineWidth = 1.2;
+    g.fillRect(X(-E.bore / 2 - 16), Y(deck + 34), (E.bore + 32) * s, 34 * s); g.strokeRect(X(-E.bore / 2 - 16), Y(deck + 34), (E.bore + 32) * s, 34 * s);
+    // gas
+    const ch = chargeOf(ps);
+    g.fillStyle = css(CH[ch]); g.globalAlpha = ch === 2 ? 0.55 + 0.35 * Math.max(0, 1 - mod(ps, 720) / 60) : 0.28;
+    g.fillRect(X(-E.bore / 2), Y(deck), E.bore * s, (deck - crown) * s); g.globalAlpha = 1;
+    // liner walls
+    g.strokeStyle = ink; g.lineWidth = 2;
+    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(X(sx * E.bore / 2), Y(deck)); g.lineTo(X(sx * E.bore / 2), Y(S_BDC - 48)); g.stroke(); }
+    // valves
+    const vdraw = (x, lift, col) => {
+      const l = lift * VALVE.lift;
+      g.strokeStyle = col; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(x), Y(deck + 60)); g.lineTo(X(x), Y(deck - l)); g.stroke();
+      g.lineWidth = 4; g.beginPath(); g.moveTo(X(x - 15), Y(deck - l)); g.lineTo(X(x + 15), Y(deck - l)); g.stroke();
+    };
+    vdraw(-24, liftIn(ps), css('--blue')); vdraw(24, liftEx(ps), mute);
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'center';
+    g.fillText('IN', X(-24), Y(deck + 66)); g.fillText('EX', X(24), Y(deck + 66));
+    // spark
+    const m = mod(ps, 720);
+    if (m < 22 || m > 712) { g.fillStyle = css('--orange'); g.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? 4 : 11, t = (i / 10) * Math.PI * 2; g.lineTo(X(0) + r * Math.cos(t), Y(deck - 6) + r * Math.sin(t)); } g.fill(); }
+    // piston
+    g.fillStyle = css('--surface'); g.strokeStyle = ink; g.lineWidth = 1.6;
+    g.beginPath(); g.rect(X(-E.bore / 2 + 2), Y(crown), (E.bore - 4) * s, 68 * s); g.fill(); g.stroke();
+    for (const r of [8, 15]) { g.beginPath(); g.moveTo(X(-E.bore / 2 + 2), Y(crown - r)); g.lineTo(X(E.bore / 2 - 2), Y(crown - r)); g.strokeStyle = line; g.stroke(); }
+    // crank
+    g.strokeStyle = mute; g.lineWidth = 1; g.setLineDash([3, 4]); g.beginPath(); g.arc(X(0), Y(0), E.r * s, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    g.fillStyle = css('--faint'); g.beginPath(); g.arc(X(0), Y(0), (E.r + 12) * s, a + Math.PI * 0.12, a + Math.PI * 0.88); g.closePath(); g.globalAlpha = 0.5; g.fill(); g.globalAlpha = 1;
+    const px = E.r * Math.sin(a), py = E.r * Math.cos(a);
+    g.strokeStyle = ink; g.lineWidth = 3; g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(px), Y(py)); g.stroke();
+    // rod
+    g.strokeStyle = css('--accent'); g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(X(px), Y(py)); g.lineTo(X(0), Y(pin)); g.stroke(); g.lineCap = 'butt';
+    for (const [x, y, r] of [[0, 0, 5], [px, py, 4], [0, pin, 4]]) { g.fillStyle = ink; g.beginPath(); g.arc(X(x), Y(y), r, 0, Math.PI * 2); g.fill(); }
+    // TDC/BDC ticks
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'left';
+    for (const [n, v] of [['TDC', S_TDC + 28], ['BDC', S_BDC + 28]]) { g.strokeStyle = line; g.beginPath(); g.moveTo(X(E.bore / 2 + 6), Y(v)); g.lineTo(X(E.bore / 2 + 26), Y(v)); g.stroke(); g.fillText(n, X(E.bore / 2 + 30), Y(v) + 3); }
+    // legend
+    g.textAlign = 'left'; g.font = font(600, 10.5, false);
+    CHN.forEach((n, i) => { g.fillStyle = css(CH[i]); g.fillRect(14, 16 + i * 17, 9, 9); g.fillStyle = i === ch ? ink : mute; g.fillText(n, 28, 24.5 + i * 17); });
+  });
+  const PV = []; for (let p = 0; p <= 720; p += 1) PV.push([volume(p), pressure(p)]);
+  const chart = makeCanvas($('#crank-chart'), (w) => clamp(w * 0.86, 320, 420), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const ink = css('--ink'), mute = css('--mute'), line = css('--line'), acc = css('--accent');
+    const pad = 38, h1 = h * 0.58;
+    // PV
+    const vx = (v) => pad + ((v - 1) / (E.cr - 1)) * (w - pad - 16), py = (p) => h1 - 14 - (p / 60) * (h1 - 44);
+    g.strokeStyle = line; g.lineWidth = 1; g.beginPath(); g.moveTo(pad, 24); g.lineTo(pad, h1 - 14); g.lineTo(w - 16, h1 - 14); g.stroke();
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'left'; g.fillText('INDICATOR DIAGRAM  P (bar) vs V', pad, 16);
+    g.textAlign = 'right'; for (const p of [0, 20, 40, 60]) g.fillText(p, pad - 6, py(p) + 3);
+    g.textAlign = 'center'; for (const v of [1, 4, 7, 10]) g.fillText(v, vx(v), h1 - 2);
+    g.lineWidth = 1.4; g.strokeStyle = css('--faint'); g.beginPath(); PV.forEach(([v, p], i) => (i ? g.lineTo(vx(v), py(p)) : g.moveTo(vx(v), py(p)))); g.stroke();
+    const k0 = Math.floor(mod(ps, 720) / 180) * 180; g.strokeStyle = css(STROKE_COL[strokeOf(ps)]); g.lineWidth = 2.6; g.beginPath();
+    for (let p = k0; p <= mod(ps, 720); p++) { const [v, pp] = PV[p]; p === k0 ? g.moveTo(vx(v), py(pp)) : g.lineTo(vx(v), py(pp)); } g.stroke();
+    const V = volume(ps), P = pressure(ps); g.fillStyle = acc; g.beginPath(); g.arc(vx(V), py(P), 5, 0, Math.PI * 2); g.fill();
+    // valve timing
+    const top = h1 + 22, bot = h - 26, x7 = (p) => pad + (p / 720) * (w - pad - 16);
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'left'; g.fillText('VALVE LIFT over 720°', pad, top - 6);
+    STROKES.forEach((n, i) => { g.fillStyle = css(STROKE_COL[n]); g.globalAlpha = 0.08; g.fillRect(x7(i * 180), top, x7(180) - pad, bot - top); g.globalAlpha = 1; g.fillStyle = css(STROKE_COL[n]); g.textAlign = 'center'; g.font = font(600, 9, true); g.fillText(n, x7(i * 180 + 90), bot + 14); });
+    for (const [f, c] of [[liftEx, mute], [liftIn, css('--blue')]]) { g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); for (let p = 0; p <= 720; p += 3) { const y = bot - f(p) * (bot - top - 6); p ? g.lineTo(x7(p), y) : g.moveTo(x7(p), y); } g.stroke(); }
+    g.strokeStyle = acc; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x7(mod(ps, 720)), top); g.lineTo(x7(mod(ps, 720)), bot); g.stroke();
+  });
+  const sl = $('#crank-psi');
+  const update = () => {
+    const st = strokeOf(ps);
+    rb[0].innerHTML = `<span class="stroke-chip" style="background:var(${STROKE_COL[st]})">${st}</span>`;
+    rb[1].textContent = `${mod(ps, 720).toFixed(0)}°`; rb[2].textContent = `${mod(ps, 360).toFixed(0)}°`;
+    rb[3].textContent = `${(pistonFrac(ps) * STROKE).toFixed(1)} mm`; rb[4].textContent = `${volume(ps).toFixed(2)} Vc`;
+    rb[5].textContent = `${pressure(ps).toFixed(1)} bar`; rb[6].textContent = `${(liftEx(ps) * VALVE.lift).toFixed(1)} mm`; rb[7].textContent = `${(liftIn(ps) * VALVE.lift).toFixed(1)} mm`;
+    sl.value = mod(ps, 720); $('#crank-psi-o').textContent = `${mod(ps, 720).toFixed(0)}°`;
+    mech.redraw(); chart.redraw();
+  };
+  sl.oninput = () => { ps = +sl.value; playing = false; $('#crank-play').textContent = '▶ Play'; update(); };
+  $('#crank-spd').oninput = (e) => { spd = +e.target.value; $('#crank-spd-o').textContent = `${spd}°/s`; };
+  $('#crank-play').onclick = (e) => { playing = !playing; e.target.textContent = playing ? '❚❚ Pause' : '▶ Play'; };
+  if (!playing) $('#crank-play').textContent = '▶ Play';
+  loopWhenVisible($('#crank-mech'), (dt) => { if (playing) { ps = mod(ps + spd * dt, 720); update(); } });
+  update();
+})();
+
+/* ======================================================================= B2 purity */
+(() => {
+  const f = (t) => 0.5 + 0.42 * Math.sin(t * 0.9) * Math.cos(t * 0.37);
+  const v = (t) => (f(t + 1e-3) - f(t - 1e-3)) / 2e-3;
+  let t = 0, xs = f(0), playing = false, flash = 0, trail = [];
+  const ro = $('#pure-ro');
+  ro.innerHTML = ['t', 'pure x = f(t)', 'stateful x += v·dt', 'error'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  const cv = makeCanvas($('#pure-cv'), 190, ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const L = 28, R = w - 28, X = (x) => L + x * (R - L);
+    const ink = css('--ink'), mute = css('--mute'), line = css('--line');
+    const rows = [[60, 'render(t) — pure', f(t), css('--green')], [132, 'game loop — stateful', xs, css('--accent')]];
+    for (const [y, name, x, c] of rows) {
+      g.strokeStyle = line; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath(); g.moveTo(L, y); g.lineTo(R, y); g.stroke(); g.lineCap = 'butt';
+      g.font = font(600, 11, true); g.fillStyle = mute; g.textAlign = 'left'; g.fillText(name.toUpperCase(), L, y - 18);
+      g.strokeStyle = mute; g.setLineDash([3, 3]); g.lineWidth = 1; g.beginPath(); g.moveTo(X(f(t)), y - 12); g.lineTo(X(f(t)), y + 12); g.stroke(); g.setLineDash([]);
+      g.fillStyle = c; g.beginPath(); g.arc(X(x), y, 9, 0, Math.PI * 2); g.fill();
+      if (flash > 0 && y > 100) { g.strokeStyle = c; g.globalAlpha = flash; g.lineWidth = 2; g.beginPath(); g.arc(X(x), y, 9 + (1 - flash) * 18, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1; }
+    }
+    g.font = font(500, 11, false); g.fillStyle = mute; g.textAlign = 'right'; g.fillText('dashed tick = where f(t) says the dot should be', R, h - 10);
+    trail.forEach((tt, i) => { g.fillStyle = ink; g.globalAlpha = 0.25; g.fillRect(X(f(tt)) - 1, 40, 2, 6); g.globalAlpha = 1; });
+  });
+  const upd = () => {
+    rb[0].textContent = `${t.toFixed(2)} s`; rb[1].textContent = f(t).toFixed(3); rb[2].textContent = xs.toFixed(3);
+    const e = Math.abs(xs - f(t)); rb[3].textContent = e.toFixed(3); rb[3].style.color = e > 0.01 ? css('--accent') : css('--green');
+    cv.redraw();
+  };
+  $('#pure-play').onclick = (e) => { playing = !playing; e.target.textContent = playing ? '❚❚ Pause' : '▶ Play'; };
+  $('#pure-seek').onclick = () => { t = 12.5; xs += v(t) * (1 / 60); flash = 1; upd(); };
+  $('#pure-rand').onclick = () => { trail = []; for (let i = 0; i < 5; i++) { t = Math.random() * 30; trail.push(t); xs += v(t) * (1 / 60); } flash = 1; upd(); };
+  $('#pure-reset').onclick = () => { t = 0; xs = f(0); trail = []; upd(); };
+  loopWhenVisible($('#pure-cv'), (dt) => { if (playing) { t += dt; xs += v(t) * dt; } if (flash > 0) flash = Math.max(0, flash - dt * 1.5); if (playing || flash > 0) upd(); });
+  upd();
+})();
+
+/* ======================================================================= B3 Jansen */
+(() => {
+  const HOLY = {a: 38, b: 41.5, c: 39.3, d: 40.1, e: 55.8, f: 39.4, g: 36.7, h: 65.7, i: 49, j: 50, k: 61.9, l: 7.8, m: 15};
+  const {a, b, c, d, e, f, g: gg, h: hh, i: ii, j, k, l, m} = HOLY;
+  const PIVOT = [-a, -l];
+  const cc = (p0, r0, p1, r1, pick) => {
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], D = Math.hypot(dx, dy);
+    const A = (r0 * r0 - r1 * r1 + D * D) / (2 * D), H = Math.sqrt(Math.max(0, r0 * r0 - A * A));
+    const mx = p0[0] + (A * dx) / D, my = p0[1] + (A * dy) / D;
+    return pick([mx + (H * dy) / D, my - (H * dx) / D], [mx - (H * dy) / D, my + (H * dx) / D]);
+  };
+  const hiY = (s, t) => (s[1] > t[1] ? s : t), loY = (s, t) => (s[1] < t[1] ? s : t), loX = (s, t) => (s[0] < t[0] ? s : t);
+  const solve = (th) => {
+    const A = [m * Math.cos(th), m * Math.sin(th)];
+    const B = cc(A, j, PIVOT, b, hiY), C = cc(A, k, PIVOT, c, loY), D = cc(B, e, PIVOT, d, loX), E = cc(D, f, C, gg, loX), F = cc(E, hh, C, ii, loY);
+    return {O: [0, 0], P: PIVOT, A, B, C, D, E, F};
+  };
+  const LINKS = [['A', 'B', 'j'], ['A', 'C', 'k'], ['P', 'B', 'b'], ['P', 'C', 'c'], ['P', 'D', 'd'], ['B', 'D', 'e'], ['D', 'E', 'f'], ['C', 'E', 'g'], ['E', 'F', 'h'], ['C', 'F', 'i']];
+  const PAR = {B: [['A', 'j'], ['P', 'b']], C: [['A', 'k'], ['P', 'c']], D: [['B', 'e'], ['P', 'd']], E: [['D', 'f'], ['C', 'g']], F: [['E', 'h'], ['C', 'i']]};
+  const N = 360, PATH = Array.from({length: N}, (_, n) => solve((n / N) * Math.PI * 2).F);
+  const FMIN = Math.min(...PATH.map((p) => p[1]));
+  let bb = [1e9, 1e9, -1e9, -1e9];
+  for (let n = 0; n < N; n += 6) { const s = solve((n / N) * Math.PI * 2); for (const p of Object.values(s)) { bb[0] = Math.min(bb[0], p[0]); bb[1] = Math.min(bb[1], p[1]); bb[2] = Math.max(bb[2], p[0]); bb[3] = Math.max(bb[3], p[1]); } }
+  const stance = PATH.filter((p) => p[1] - FMIN < 1).length / N;
+  let th = 0, playing = !reduced, joint = 'D';
+  const seg = $('#jan-joint');
+  seg.innerHTML = ['none', 'B', 'C', 'D', 'E', 'F'].map((x) => `<button class="btn${x === joint ? ' on' : ''}" data-j="${x}">${x === 'none' ? 'circles: off' : x}</button>`).join('');
+  seg.onclick = (ev) => { const bt = ev.target.closest('button'); if (!bt) return; joint = bt.dataset.j; $$('button', seg).forEach((x) => x.classList.toggle('on', x === bt)); cv.redraw(); };
+  const ro = $('#jan-ro');
+  ro.innerHTML = ['crank', 'foot lift', 'phase', 'stance share', 'unknowns solved'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  const cv = makeCanvas($('#jan-cv'), (w) => clamp(w * 0.5, 320, 460), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const pad = 30, sc = Math.min((w - 2 * pad) / (bb[2] - bb[0] + 20), (h - 2 * pad) / (bb[3] - bb[1] + 10));
+    const ox = w / 2 - ((bb[0] + bb[2]) / 2) * sc, oy = h / 2 + ((bb[1] + bb[3]) / 2) * sc;
+    const P = (p) => [ox + p[0] * sc, oy - p[1] * sc];
+    const S = solve(th), ink = css('--ink'), mute = css('--mute'), acc = css('--accent'), line = css('--line');
+    // ground
+    g.strokeStyle = line; g.lineWidth = 1; const gy = P([0, FMIN])[1] + 6; g.beginPath(); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke();
+    for (let x = (ox % 14) - 14; x < w; x += 14) { g.beginPath(); g.moveTo(x, gy); g.lineTo(x - 7, gy + 7); g.stroke(); }
+    // trace
+    if ($('#jan-trace').checked) {
+      g.lineWidth = 2;
+      for (let n = 0; n < N; n++) { const p0 = P(PATH[n]), p1 = P(PATH[(n + 1) % N]); g.strokeStyle = PATH[n][1] - FMIN < 1 ? acc : css('--faint'); g.beginPath(); g.moveTo(...p0); g.lineTo(...p1); g.stroke(); }
+    }
+    // construction circles
+    if (joint !== 'none') {
+      for (const [pn, rn] of PAR[joint]) { const [x, y] = P(S[pn]); g.strokeStyle = css('--blue'); g.globalAlpha = 0.65; g.setLineDash([4, 4]); g.lineWidth = 1.3; g.beginPath(); g.arc(x, y, HOLY[rn] * sc, 0, Math.PI * 2); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+        g.font = font(600, 11, true); g.fillStyle = css('--blue'); g.fillText(`${rn} = ${HOLY[rn]}`, x + HOLY[rn] * sc * 0.72, y - HOLY[rn] * sc * 0.72); }
+    }
+    // crank circle
+    g.strokeStyle = mute; g.setLineDash([2, 3]); g.lineWidth = 1; g.beginPath(); g.arc(...P([0, 0]), m * sc, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    // links
+    g.lineCap = 'round';
+    for (const [p, q, n] of LINKS) { const hl = joint !== 'none' && PAR[joint].some(([pn, rn]) => rn === n); g.strokeStyle = hl ? css('--blue') : ink; g.lineWidth = hl ? 4 : 3; g.beginPath(); g.moveTo(...P(S[p])); g.lineTo(...P(S[q])); g.stroke();
+      if ($('#jan-lab').checked) { const [x0, y0] = P(S[p]), [x1, y1] = P(S[q]); g.font = font(600, 11, true); g.fillStyle = css('--violet'); g.fillText(n, (x0 + x1) / 2 + 4, (y0 + y1) / 2 - 4); } }
+    g.strokeStyle = acc; g.lineWidth = 4; g.beginPath(); g.moveTo(...P(S.O)); g.lineTo(...P(S.A)); g.stroke(); g.lineCap = 'butt';
+    // triangles (rigid)
+    for (const tri of [['B', 'D', 'P'], ['E', 'F', 'C']]) { g.fillStyle = ink; g.globalAlpha = 0.07; g.beginPath(); tri.forEach((q, i) => (i ? g.lineTo(...P(S[q])) : g.moveTo(...P(S[q])))); g.fill(); g.globalAlpha = 1; }
+    // joints
+    for (const [n, p] of Object.entries(S)) { const [x, y] = P(p); const fixed = n === 'O' || n === 'P';
+      g.fillStyle = n === 'F' ? acc : n === joint ? css('--blue') : css('--surface'); g.strokeStyle = n === 'F' ? acc : ink; g.lineWidth = 2;
+      g.beginPath(); fixed ? g.rect(x - 6, y - 6, 12, 12) : g.arc(x, y, n === 'F' ? 7 : 5, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.font = font(700, 12, true); g.fillStyle = n === joint ? css('--blue') : mute; g.fillText(n, x + 9, y - 8); }
+    g.font = font(500, 11, false); g.fillStyle = mute; g.textAlign = 'left'; g.fillText('■ fixed pivots (O = crank axle, P)   ● joints solved by circle intersection   red = foot path in stance', 14, 18);
+  });
+  const upd = () => {
+    const F = solve(th).F, lift = F[1] - FMIN;
+    rb[0].textContent = `${((th * 180) / Math.PI).toFixed(0)}°`; rb[1].textContent = `${lift.toFixed(1)} cm`;
+    rb[2].innerHTML = lift < 1 ? '<span style="color:var(--accent)">STANCE</span>' : 'SWING'; rb[3].textContent = `${(stance * 100).toFixed(0)} % of crank`; rb[4].textContent = '5 × cc()';
+    $('#jan-th').value = ((th * 180) / Math.PI) % 360; $('#jan-th-o').textContent = `${((th * 180) / Math.PI % 360).toFixed(0)}°`;
+    cv.redraw();
+  };
+  $('#jan-th').oninput = (ev) => { th = (+ev.target.value * Math.PI) / 180; playing = false; $('#jan-play').textContent = '▶ Play'; upd(); };
+  $('#jan-play').onclick = (ev) => { playing = !playing; ev.target.textContent = playing ? '❚❚ Pause' : '▶ Play'; };
+  if (!playing) $('#jan-play').textContent = '▶ Play';
+  $('#jan-trace').onchange = $('#jan-lab').onchange = () => cv.redraw();
+  loopWhenVisible($('#jan-cv'), (dt) => { if (playing) { th = mod(th + dt * 1.6, Math.PI * 2); upd(); } });
+  upd();
+})();
+</script>
+<script>
+/* ======================================================================= B4 handoff */
+(() => {
+  const box = $('#hand'), chip = $('#hand-chip'), curEl = $('#hand-cur'), ringEl = $('#hand-ring');
+  const VIEWS = {hero: {az: 40, el: 24, d: 1}, side: {az: 100, el: 10, d: 1.05}, cyl: {az: 12, el: 8, d: 0.62}};
+  const names = Object.keys(VIEWS);
+  const btns = {};
+  names.forEach((n, i) => { const b = document.createElement('div'); b.className = 'hb'; b.textContent = n.toUpperCase(); b.style.left = `${16 + i * 70}px`; b.style.bottom = '16px'; box.appendChild(b); btns[n] = b; });
+  const TOUR = [{t: 0.9, v: 'side'}, {t: 3.9, v: 'cyl'}, {t: 6.9, v: 'hero'}], CYC = 9, IDLE = 6;
+  const spot = (n) => { const b = btns[n]; return [b.offsetLeft + b.offsetWidth / 2, b.offsetTop + b.offsetHeight / 2]; };
+  const rest = () => [box.clientWidth * 0.62, box.clientHeight * 0.45];
+  let T = 0, tour = true, t0 = 0, lastInput = -99, view = 'hero', ring = -9, ringXY = [0, 0], log = [];
+  const cam = {...VIEWS.hero}, off = {az: 0, el: 0};
+  const cursorAt = (c) => {
+    const W = [[0, ...rest()]];
+    TOUR.forEach((e) => { const sp = spot(e.v); W.push([e.t - 0.75, ...rest()], [e.t - 0.1, ...sp], [e.t + 0.35, ...sp], [e.t + 1.4, rest()[0] + 30, rest()[1] - 20]); });
+    W.push([CYC, ...rest()]);
+    let i = 0; while (i < W.length - 2 && c > W[i + 1][0]) i++;
+    const [a0, x0, y0] = W[i], [a1, x1, y1] = W[i + 1], k = ss(a0, a1, c);
+    return [x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, TOUR.some((e) => c >= e.t - 0.06 && c < e.t + 0.1)];
+  };
+  const startTour = () => { tour = true; t0 = T; off.az = off.el = 0; log.unshift(`${T.toFixed(1)}s  startTour()  — ${IDLE}s idle`); };
+  const takeOver = () => { lastInput = T; if (!tour) return; tour = false; log.unshift(`${T.toFixed(1)}s  takeOver()  — visitor input`); };
+  names.forEach((n) => btns[n].addEventListener('pointerdown', (e) => { e.stopPropagation(); takeOver(); view = n; ring = T; ringXY = spot(n); }));
+  chip.addEventListener('pointerdown', (e) => { e.stopPropagation(); if (tour) takeOver(); else { lastInput = T; startTour(); } });
+  let drag = null;
+  box.addEventListener('pointerdown', (e) => { takeOver(); drag = [e.clientX, e.clientY]; box.setPointerCapture(e.pointerId); });
+  box.addEventListener('pointermove', (e) => { if (!drag) return; off.az += (e.clientX - drag[0]) * 0.4; off.el = clamp(off.el + (e.clientY - drag[1]) * 0.25, -20, 50); drag = [e.clientX, e.clientY]; lastInput = T; });
+  box.addEventListener('pointerup', () => (drag = null));
+  const cv = makeCanvas($('#hand-cv'), () => box.clientHeight, ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const az = (cam.az * Math.PI) / 180, el = (cam.el * Math.PI) / 180, D = 6 * cam.d;
+    const pr = ([x, y, z]) => { const x1 = x * Math.cos(az) - z * Math.sin(az), z1 = x * Math.sin(az) + z * Math.cos(az); const y2 = y * Math.cos(el) - z1 * Math.sin(el), z2 = y * Math.sin(el) + z1 * Math.cos(el); const p = (h * 0.95) / (D + z2); return [w * 0.5 + x1 * p, h * 0.5 - y2 * p + 10]; };
+    const ink = css('--ink'), mute = css('--mute');
+    // block
+    const Bx = [[-1.2, -0.8, -0.7], [1.2, -0.8, -0.7], [1.2, -0.8, 0.7], [-1.2, -0.8, 0.7], [-1.2, 0.3, -0.7], [1.2, 0.3, -0.7], [1.2, 0.3, 0.7], [-1.2, 0.3, 0.7]];
+    const E = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    g.strokeStyle = mute; g.lineWidth = 1.2; E.forEach(([a, b]) => { g.beginPath(); g.moveTo(...pr(Bx[a])); g.lineTo(...pr(Bx[b])); g.stroke(); });
+    // 4 cylinders
+    for (let i = 0; i < 4; i++) { const x = -0.9 + i * 0.6, ph = T * 4 + i * Math.PI / 2, top = 0.3 + 0.75 + 0.25 * Math.cos(ph);
+      g.strokeStyle = i === 1 ? css('--accent') : ink; g.lineWidth = i === 1 ? 2.2 : 1.4;
+      for (let k = 0; k < 16; k++) { const a0 = (k / 16) * Math.PI * 2, a1 = ((k + 1) / 16) * Math.PI * 2; for (const y of [0.3, top]) { g.beginPath(); g.moveTo(...pr([x + 0.22 * Math.cos(a0), y, 0.22 * Math.sin(a0)])); g.lineTo(...pr([x + 0.22 * Math.cos(a1), y, 0.22 * Math.sin(a1)])); g.stroke(); } }
+    }
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'right'; g.fillText(`az ${cam.az.toFixed(0)}°  el ${cam.el.toFixed(0)}°`, w - 12, h - 24);
+  });
+  const ro = $('#hand-ro');
+  ro.innerHTML = ['mode', 'view', 'easing τ', 'tour resumes in'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  const sm = $('#hand-sm');
+  const drawSM = () => {
+    const A = css('--accent'), I = css('--ink'), M = css('--mute'), L = css('--line'), S = css('--surface');
+    const node = (x, y, label, sub, on) => `<rect x="${x}" y="${y}" width="150" height="66" rx="10" fill="${on ? A : S}" stroke="${on ? A : L}" stroke-width="1.5"/><text x="${x + 75}" y="${y + 30}" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="13" fill="${on ? '#fff' : I}">${label}</text><text x="${x + 75}" y="${y + 49}" text-anchor="middle" font-family="Inter" font-size="10.5" fill="${on ? '#fff' : M}">${sub}</text>`;
+    sm.innerHTML = `<defs><marker id="hm" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="${M}"/></marker></defs>
+      <text x="20" y="28" font-family="JetBrains Mono" font-size="11" font-weight="600" letter-spacing="1" fill="${M}">STATE MACHINE (live.js)</text>
+      ${node(30, 110, 'AP.on', 'plays film SCRIPT, loops', tour)}${node(240, 110, 'VISITOR', 'buttons · orbit · keys', !tour)}
+      <path d="M180 128 C 205 100, 215 100, 238 128" fill="none" stroke="${M}" stroke-width="1.5" marker-end="url(#hm)"/>
+      <text x="210" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="10.5" fill="${I}">takeOver()</text>
+      <text x="210" y="78" text-anchor="middle" font-family="Inter" font-size="10" fill="${M}">pointerdown · wheel · key</text>
+      <path d="M238 160 C 215 190, 205 190, 182 160" fill="none" stroke="${M}" stroke-width="1.5" marker-end="url(#hm)"/>
+      <text x="210" y="205" text-anchor="middle" font-family="JetBrains Mono" font-size="10.5" fill="${I}">startTour()</text>
+      <text x="210" y="220" text-anchor="middle" font-family="Inter" font-size="10" fill="${M}">T − lastInput &gt; 25 s (demo: ${IDLE} s)</text>
+      <text x="20" y="252" font-family="JetBrains Mono" font-size="10.5" fill="${M}">${esc(log[0] || '')}</text><text x="20" y="270" font-family="JetBrains Mono" font-size="10.5" fill="${M}" opacity=".6">${esc(log[1] || '')}</text><text x="20" y="288" font-family="JetBrains Mono" font-size="10.5" fill="${M}" opacity=".35">${esc(log[2] || '')}</text>`;
+  };
+  let lastSM = '';
+  loopWhenVisible(box, (dt) => {
+    T += dt;
+    let cx = -99, cy = -99, press = false;
+    if (tour) {
+      const c = (T - t0) % CYC;
+      view = TOUR.filter((e) => e.t <= c).pop()?.v ?? 'hero';
+      [cx, cy, press] = cursorAt(c);
+      const ev = TOUR.find((e) => c >= e.t && c < e.t + dt + 0.001); if (ev) { ring = T; ringXY = spot(ev.v); }
+    } else if (T - lastInput > IDLE) startTour();
+    const tgt = VIEWS[view], tau = tour ? 0.18 : 0.45, k = 1 - Math.exp(-dt / tau);
+    cam.az += (tgt.az + off.az - cam.az) * k; cam.el += (clamp(tgt.el + off.el, -10, 70) - cam.el) * k; cam.d += (tgt.d - cam.d) * k;
+    names.forEach((n) => btns[n].classList.toggle('on', n === view));
+    curEl.style.transform = `translate(${cx - 3}px, ${cy - 2}px) scale(${press ? 0.86 : 1})`; curEl.style.display = tour ? '' : 'none';
+    const rk = Math.max(0, 1 - (T - ring) / 0.55); ringEl.style.opacity = rk; ringEl.style.left = ringXY[0] + 'px'; ringEl.style.top = ringXY[1] + 'px'; ringEl.style.transform = `scale(${1 + (1 - rk) * 0.6})`;
+    chip.classList.toggle('on', tour); chip.lastChild.textContent = tour ? 'AUTO TOUR · CLICK TO TAKE OVER' : '▶ RESUME TOUR';
+    rb[0].textContent = tour ? 'AUTO TOUR' : 'VISITOR'; rb[0].style.color = tour ? css('--accent') : css('--ink');
+    rb[1].textContent = view; rb[2].textContent = `${tau.toFixed(2)} s`; rb[3].textContent = tour ? '—' : `${Math.max(0, IDLE - (T - lastInput)).toFixed(1)} s`;
+    cv.redraw();
+    const key = `${tour}|${log[0]}`; if (key !== lastSM) { lastSM = key; drawSM(); }
+  });
+  addEventListener('themechange', drawSM);
+  drawSM();
+})();
+
+/* ======================================================================= B5 timeline (film.js port) */
+(() => {
+  const SCRIPT = [{t: 0, cam: 'open'}, {t: 3.5, cam: 'cyl'}, {t: 6.9, track: 6}, {t: 9.7, cam: 'valley'}, {t: 12.1, rpm: [700, 2400, 1.4]}, {t: 14.7, cam: 'side'}, {t: 17.3, cam: 'front'}, {t: 19.9, cam: 'hero'}, {t: 22.5, track: 1}];
+  const DUR = 26, PLAY = 20, R = SCRIPT.find((e) => e.rpm);
+  const rpmAt = (t) => R.rpm[0] + (R.rpm[1] - R.rpm[0]) * ss(R.t, R.t + R.rpm[2], t);
+  const DT = 1 / 240, TH = []; { let th = 12; for (let t = 0; t <= DUR + 1; t += DT) { TH.push(th); th += ((rpmAt(t + DT / 2) / 60) * 360 * DT) / PLAY; } }
+  const thetaAt = (t) => { const u = clamp(t / DT, 0, TH.length - 2), i = Math.floor(u); return TH[i] + (TH[i + 1] - TH[i]) * (u - i); };
+  const trackAt = (t) => SCRIPT.filter((e) => e.track && e.t <= t).pop()?.track ?? 1;
+  const VIEWS = SCRIPT.filter((e) => e.cam);
+  const FIR = []; { let th = 12, nx = 90; for (let t = 0; t < DUR - 0.3; t += 1 / 480) { th += (rpmAt(t) / 60) * 360 / 480 / 20; if (th >= nx) { FIR.push(t); nx += 90; } } }
+  const CLICKS = [3.5, 6.9, 9.7, 12.1, 14.7, 17.3, 19.9, 22.5];
+  const COL = {open: '--k-asset', cyl: '--accent', valley: '--violet', side: '--blue', front: '--green', hero: '--orange'};
+  let t = 0, playing = false;
+  const ro = $('#tl-ro');
+  ro.innerHTML = ['t', 'frame @60', 'camera', 'blend k', 'tracking', 'rpm', 'crank θ'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  let geo = {};
+  const cv = makeCanvas($('#tl-cv'), 230, ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const L = 76, Rr = w - 16, X = (s) => L + (s / DUR) * (Rr - L); geo = {L, Rr};
+    const mute = css('--mute'), ink = css('--ink'), line = css('--line'), acc = css('--accent');
+    const rows = [['camera', 28], ['track', 66], ['rpm', 104], ['score', 150], ['stills', 190]];
+    g.font = font(600, 10, true); g.textAlign = 'right'; rows.forEach(([n, y]) => { g.fillStyle = mute; g.fillText(n.toUpperCase(), L - 10, y + 4); });
+    // time grid
+    g.strokeStyle = line; g.lineWidth = 1; for (let s = 0; s <= DUR; s += 2) { g.beginPath(); g.moveTo(X(s), 10); g.lineTo(X(s), h - 18); g.stroke(); g.fillStyle = mute; g.textAlign = 'center'; g.fillText(s, X(s), h - 4); }
+    // camera blocks
+    VIEWS.forEach((v, i) => { const t1 = VIEWS[i + 1]?.t ?? DUR; g.fillStyle = css(COL[v.cam]); g.globalAlpha = 0.85; g.fillRect(X(v.t), 18, X(t1) - X(v.t) - 1, 20); g.globalAlpha = 1;
+      // blend ramp
+      if (i > 0) { g.fillStyle = css('--surface'); g.globalAlpha = 0.45; g.beginPath(); g.moveTo(X(v.t), 18); g.lineTo(X(v.t + 1.6), 18); g.lineTo(X(v.t), 38); g.fill(); g.globalAlpha = 1; }
+      g.fillStyle = '#fff'; g.textAlign = 'left'; g.font = font(600, 10, true); if (X(t1) - X(v.t) > 34) g.fillText(v.cam, X(v.t) + 5, 32); });
+    // track
+    const tr = [[0, 1], [6.9, 6], [22.5, 1], [DUR, 1]]; for (let i = 0; i < 3; i++) { g.fillStyle = css('--surface2'); g.fillRect(X(tr[i][0]), 56, X(tr[i + 1][0]) - X(tr[i][0]) - 1, 20); g.fillStyle = ink; g.textAlign = 'left'; g.fillText(`cyl ${tr[i][1]}`, X(tr[i][0]) + 5, 70); }
+    // rpm
+    g.strokeStyle = acc; g.lineWidth = 2; g.beginPath(); for (let s = 0; s <= DUR; s += 0.05) { const y = 118 - ((rpmAt(s) - 700) / 1700) * 26; s ? g.lineTo(X(s), y) : g.moveTo(X(s), y); } g.stroke();
+    g.fillStyle = mute; g.textAlign = 'left'; g.fillText('700', X(0.2), 114); g.fillText('2400', X(14), 96);
+    // score
+    g.strokeStyle = ink; g.lineWidth = 1; FIR.forEach((f) => { g.beginPath(); g.moveTo(X(f), 142); g.lineTo(X(f), 158); g.stroke(); });
+    g.fillStyle = acc; CLICKS.forEach((c) => { g.beginPath(); g.arc(X(c), 136, 3.5, 0, Math.PI * 2); g.fill(); });
+    // stills
+    g.strokeStyle = css('--blue'); g.lineWidth = 1.5; [0, ...SCRIPT.filter((e) => e.t > 0).map((e) => e.t + 0.3)].forEach((s) => { g.beginPath(); g.rect(X(s) - 5, 183, 10, 14); g.stroke(); });
+    // playhead
+    g.strokeStyle = acc; g.lineWidth = 2; g.beginPath(); g.moveTo(X(t), 8); g.lineTo(X(t), h - 18); g.stroke(); g.fillStyle = acc; g.beginPath(); g.moveTo(X(t) - 6, 4); g.lineTo(X(t) + 6, 4); g.lineTo(X(t), 12); g.fill();
+  });
+  const upd = () => {
+    const v = VIEWS.filter((e) => e.t <= t).pop(), k = v.t === 0 ? 1 : ss(v.t, v.t + 1.6, t);
+    rb[0].textContent = `${t.toFixed(2)} s`; rb[1].textContent = Math.round(t * 60); rb[2].textContent = v.cam === 'open' ? 'open → hero' : v.cam;
+    rb[3].textContent = k.toFixed(2); rb[4].textContent = `cylinder ${trackAt(t)}`; rb[5].textContent = Math.round(rpmAt(t)); rb[6].textContent = `${mod(thetaAt(t), 720).toFixed(0)}°`;
+    cv.redraw();
+  };
+  const el = $('#tl-cv'); let dragging = false;
+  const seek = (e) => { const r = el.getBoundingClientRect(); t = clamp(((e.clientX - r.left - geo.L) / (geo.Rr - geo.L)) * DUR, 0, DUR - 0.001); upd(); };
+  el.addEventListener('pointerdown', (e) => { dragging = true; el.setPointerCapture(e.pointerId); seek(e); });
+  el.addEventListener('pointermove', (e) => dragging && seek(e)); el.addEventListener('pointerup', () => (dragging = false));
+  $('#tl-play').onclick = (e) => { playing = !playing; e.target.textContent = playing ? '❚❚ Pause' : '▶ Play 1×'; };
+  loopWhenVisible(el, (dt) => { if (playing) { t = (t + dt) % DUR; upd(); } });
+  upd();
+  window.__V8 = {rpmAt, FIR, CLICKS, DUR};
+})();
+
+/* ======================================================================= C1 pipeline */
+(() => {
+  const P = [
+    ['Scene graph', 'meshes · lights · env', false, 'Every part is a mesh with a material. Lighting comes from a directional "sun" with a VSM shadow map, a hemisphere fill, and <code>scene.environment</code>, a PMREM-filtered map of four emissive softboxes that the gloss and the glass reflect. The background is a 4×512 canvas gradient used as a screen-space texture.'],
+    ['RenderPass', '→ HalfFloat, MSAA 8×', false, 'Draws the scene into an off-screen <code>WebGLRenderTarget</code> with <code>type: HalfFloatType</code> (16-bit float per channel, so values above 1.0 survive until tone mapping) and <code>samples: 8</code> (multisample anti-aliasing, resolved when read). The renderer itself has <code>antialias: false</code> because MSAA happens in the target. The lowest tier drops to 2 samples.'],
+    ['Toggle(hide)', 'needsSwap = false', true, 'A tiny custom <code>Pass</code> whose <code>render()</code> just runs a function: here it hides the shadow-catcher floor and the section cap. <code>needsSwap = false</code> means it doesn\'t touch the ping-pong buffers. It\'s a neat trick: passes don\'t have to draw anything.'],
+    ['GTAOPass', 'ground-truth AO', false, 'Screen-space ambient occlusion: for each pixel it looks at nearby depths and normals to estimate how much of the hemisphere is blocked, which darkens creases and contacts. It re-renders the scene with its own normal material (so the section-cut clipping planes must be copied onto it). The floor is hidden so it doesn\'t get AO halos. Blend 0.75, radius 0.05 m, 16 samples, then a Poisson denoise. Turned off from tier 1 down, because it\'s the most expensive pass.'],
+    ['Toggle(show)', 'restore floor + cap', true, 'Shows the floor and cap again. They were drawn in the RenderPass (their shadow is already in the image); they were only hidden from the AO computation.'],
+    ['OutputPass', 'tone map + sRGB', false, 'Applies the renderer\'s tone mapping (<code>NeutralToneMapping</code> for the V8) to compress HDR into 0–1, then converts linear to sRGB for display. Doing it once at the end, instead of in every material, is what lets the passes in between work in linear HDR. See the curves below.'],
+    ['Canvas', 'preserveDrawingBuffer', false, '<code>preserveDrawingBuffer: true</code> keeps the last frame in the canvas after compositing, so Playwright\'s screenshot (and the director\'s glitch effect, which reads the canvas) sees the real frame instead of a cleared buffer.'],
+  ];
+  const wrap = $('#passes'), det = $('#pass-detail');
+  wrap.innerHTML = P.map(([n, s, tg], i) => `<div class="pass${tg ? ' toggle' : ''}" data-i="${i}"><b>${n}</b><small>${s}</small></div>`).join('');
+  const show = (i) => { $$('.pass', wrap).forEach((p, j) => p.classList.toggle('on', i === j)); det.innerHTML = `<div class="lbl">${P[i][0]}</div><p style="margin:6px 0 0;font-size:14.5px">${P[i][3]}</p>`; };
+  wrap.onclick = (e) => { const p = e.target.closest('.pass'); if (p) show(+p.dataset.i); };
+  show(3);
+})();
+(() => {
+  const srgb = (c) => { c = clamp01(c); return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; };
+  const aces = (x) => clamp01((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14));
+  const neutral = (rgb) => {
+    const sc = 0.8 - 0.04, des = 0.15; let [r, g, b] = rgb;
+    const x = Math.min(r, g, b), off = x < 0.08 ? x - 6.25 * x * x : 0.04; r -= off; g -= off; b -= off;
+    const peak = Math.max(r, g, b); if (peak < sc) return [r, g, b];
+    const d = 1 - sc, np = 1 - (d * d) / (peak + d - sc); r *= np / peak; g *= np / peak; b *= np / peak;
+    const gg = 1 - 1 / (des * (peak - np) + 1); return [r + (np - r) * gg, g + (np - g) * gg, b + (np - b) * gg];
+  };
+  const CUR = [['Clamp (no tone map)', (v) => v.map(clamp01), '--mute'], ['ACES Filmic (kit stage3d)', (v) => v.map(aces), '--blue'], ['PBR Neutral (V8 stage)', neutral, '--accent']];
+  let ex = 1;
+  const cv = makeCanvas($('#tm-cv'), (w) => (w < 600 ? 420 : 250), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const narrow = w < 600, pw = narrow ? w - 40 : w * 0.42, ph = narrow ? 180 : h - 50, px = 46, py = 18;
+    const mute = css('--mute'), line = css('--line');
+    g.strokeStyle = line; g.beginPath(); g.moveTo(px, py); g.lineTo(px, py + ph); g.lineTo(px + pw, py + ph); g.stroke();
+    g.font = font(600, 10, true); g.fillStyle = mute; g.textAlign = 'right'; g.fillText('1', px - 6, py + 4); g.fillText('0', px - 6, py + ph); g.textAlign = 'center'; [0, 1, 2, 3, 4].forEach((v) => g.fillText(v, px + (v / 4) * pw, py + ph + 14));
+    g.textAlign = 'left'; g.fillText('scene radiance →', px + pw - 110, py + ph - 6);
+    CUR.forEach(([n, f, c], k) => { g.strokeStyle = css(c); g.lineWidth = 2; g.beginPath(); for (let i = 0; i <= 200; i++) { const x = (i / 200) * 4, y = f([x * ex, x * ex, x * ex])[0]; const X = px + (x / 4) * pw, Y = py + ph - y * ph; i ? g.lineTo(X, Y) : g.moveTo(X, Y); } g.stroke(); g.fillStyle = css(c); g.fillText(n, px + pw * 0.42, py + ph - 52 + k * 14); });
+    // strips
+    const sx = narrow ? 20 : px + pw + 40, sw = narrow ? w - 40 : w - sx - 20, sy0 = narrow ? py + ph + 34 : 26, sh = 36, base = [1.0, 0.55, 0.32];
+    CUR.forEach(([n, f], k) => {
+      const y = sy0 + k * (sh + 22); g.fillStyle = mute; g.textAlign = 'left'; g.fillText(n, sx, y - 4);
+      const img = g.createImageData(Math.max(1, Math.round(sw)), 1);
+      for (let i = 0; i < img.width; i++) { const L = (i / img.width) * 4 * ex; const o = f(base.map((b) => b * L)); img.data[i * 4] = srgb(o[0]) * 255; img.data[i * 4 + 1] = srgb(o[1]) * 255; img.data[i * 4 + 2] = srgb(o[2]) * 255; img.data[i * 4 + 3] = 255; }
+      const tmp = document.createElement('canvas'); tmp.width = img.width; tmp.height = 1; tmp.getContext('2d').putImageData(img, 0, 0);
+      g.imageSmoothingEnabled = true; g.drawImage(tmp, sx, y, sw, sh);
+    });
+  });
+  $('#tm-exp').oninput = (e) => { ex = +e.target.value; $('#tm-exp-o').textContent = ex.toFixed(2); cv.redraw(); };
+})();
+
+/* ======================================================================= C3 lighting */
+(() => {
+  const norm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const box = (w, h, pos, k) => { const n = norm(pos), up = Math.abs(n[1]) > 0.9 ? [0, 0, 1] : [0, 1, 0]; const ax = norm(cross(up, n)), ay = cross(n, ax); return {w, h, pos, k, n, ax, ay, dist: Math.hypot(...pos)}; };
+  const FULL = [box(12, 12, [0, 14, 2], 2.6), box(3, 14, [-12, 4, 6], 3.4), box(3, 14, [12, 4, -4], 2.2), box(18, 2, [0, 2, 14], 1.6)];
+  const PLAIN = [FULL[0]];
+  let studio = 'full', rough = 0.12, envI = 1;
+  const sstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+  const env = (R, boxes) => {
+    let L = R[1] < -0.05 ? 0.62 : 0.72; // ground disc vs grey background
+    for (const B of boxes) { const dn = dot(R, B.n); if (dn <= 0) continue; const t = B.dist / dn; const hx = dot(R, B.ax) * t, hy = dot(R, B.ay) * t; const soft = 0.3 + rough * t * 0.9;
+      L += B.k * sstep(-soft, soft, B.w / 2 - Math.abs(hx)) * sstep(-soft, soft, B.h / 2 - Math.abs(hy)) * (1 - rough * 0.55); }
+    return L;
+  };
+  const tone = (x) => { const sc = 0.76; if (x < sc) return x; const d = 1 - sc; return 1 - (d * d) / (x + d - sc); };
+  const srgb = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+  const cv = makeCanvas($('#sph-cv'), (w) => (w < 560 ? w / 2 + 50 : 300), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const boxes = studio === 'full' ? FULL : PLAIN, narrow = w < 560;
+    const S = [['gloss black', [0.025, 0.026, 0.028], 0.04], ['polished steel', [0.56, 0.57, 0.58], 0.62]];
+    const n = narrow ? 2 : 3, size = Math.floor(Math.min(narrow ? w / 2 - 20 : (w - 60) / 3.2, h - 60)), ys = 34;
+    const bgc = css('--surface2');
+    S.forEach(([name, base, F0], k) => {
+      const x0 = narrow ? 10 + k * (w / 2) : 20 + k * (size + 30), img = g.createImageData(size, size), r = size / 2;
+      for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+        const u = (px - r) / r, v = -(py - r) / r, q = u * u + v * v, o = (py * size + px) * 4;
+        if (q > 1) { img.data[o + 3] = 0; continue; }
+        const N = [u, v, Math.sqrt(1 - q)], V = [0, 0, -1], dv = dot(V, N), R = [V[0] - 2 * dv * N[0], V[1] - 2 * dv * N[1], V[2] - 2 * dv * N[2]];
+        const F = F0 + (1 - F0) * Math.pow(1 - N[2], 5) * (1 - rough);
+        const spec = env(R, boxes) * envI, diff = 0.55 + 0.45 * N[1];
+        for (let c = 0; c < 3; c++) { const val = base[c] * diff * (1 - F) * 0.9 + F * spec * (F0 > 0.3 ? base[c] * 1.7 : 1); img.data[o + c] = srgb(clamp01(tone(val))) * 255; }
+        img.data[o + 3] = 255;
+      }
+      const tmp = document.createElement('canvas'); tmp.width = tmp.height = size; tmp.getContext('2d').putImageData(img, 0, 0); g.drawImage(tmp, x0, ys);
+      g.font = font(600, 11, true); g.fillStyle = css('--mute'); g.textAlign = 'center'; g.fillText(name.toUpperCase(), x0 + r, ys - 12);
+    });
+    if (!narrow) {
+      // studio map
+      const x0 = 20 + 2 * (size + 30), cx = x0 + size / 2, cy = ys + size / 2, sc = size / 34;
+      g.fillStyle = css('--mute'); g.font = font(600, 11, true); g.textAlign = 'center'; g.fillText('STUDIO (TOP VIEW)', cx, ys - 12);
+      g.strokeStyle = css('--line'); g.strokeRect(x0, ys, size, size);
+      g.fillStyle = css('--ink'); g.beginPath(); g.arc(cx, cy, 6, 0, Math.PI * 2); g.fill();
+      FULL.forEach((B, i) => { const on = studio === 'full' || i === 0; const [x, , z] = B.pos; g.save(); g.translate(cx + x * sc, cy + z * sc); g.rotate(Math.atan2(z, x) + Math.PI / 2);
+        g.fillStyle = on ? css('--amber') : css('--faint'); const ww = B.w * sc; g.fillRect(-ww / 2, -3, ww, 6); g.restore();
+        g.fillStyle = css('--mute'); g.font = font(500, 10, true); g.fillText(`×${B.k}`, cx + x * sc * 1.05, cy + z * sc * 1.05 + (i === 0 ? -8 : 14)); });
+      g.fillText('camera ↓ (+z)', cx, ys + size - 8);
+    }
+    void bgc; void n;
+  });
+  $('#sph-studio').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; studio = b.dataset.s; $$('#sph-studio .btn').forEach((x) => x.classList.toggle('on', x === b)); cv.redraw(); };
+  $('#sph-r').oninput = (e) => { rough = +e.target.value; $('#sph-r-o').textContent = rough.toFixed(2); cv.redraw(); };
+  $('#sph-e').oninput = (e) => { envI = +e.target.value; $('#sph-e-o').textContent = envI.toFixed(2); cv.redraw(); };
+
+  // shadows
+  let N = 28;
+  const sh = makeCanvas($('#sh-cv'), (w) => (w < 560 ? 3 * (w * 0.62) + 40 : 230), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const narrow = w < 560, T = narrow ? Math.min(w - 40, 260) : Math.min((w - 80) / 3, 200);
+    const occ = (u, v) => (u - 0.5) ** 2 + (v - 0.5) ** 2 < 0.3 * 0.3 || (Math.abs(u - 0.78) < 0.08 && Math.abs(v - 0.3) < 0.2);
+    const types = [['BasicShadowMap', 'one tap, nearest texel'], ['PCFShadowMap', 'filtered neighbour taps'], ['VSMShadowMap', 'blurred moments, radius 14']];
+    const floor = css('--surface'), shade = css('--ink');
+    const fc = floor.match(/\w\w/g)?.map((x) => parseInt(x, 16)) || [255, 255, 255];
+    const sc = shade.match(/\w\w/g)?.map((x) => parseInt(x, 16)) || [20, 20, 20];
+    const rnd = (() => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })(); const OFF = Array.from({length: 40}, () => { const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()); return [r * Math.cos(a), r * Math.sin(a)]; });
+    types.forEach(([n, s], k) => {
+      const x0 = narrow ? (w - T) / 2 : 20 + k * (T + 20), y0 = narrow ? 30 + k * (T + 40) : 34, R = Math.round(T);
+      const img = g.createImageData(R, R);
+      const tex = (u, v) => { const tu = (Math.floor(u * N) + 0.5) / N, tv = (Math.floor(v * N) + 0.5) / N; return occ(tu, tv) ? 1 : 0; };
+      for (let py = 0; py < R; py++) for (let px = 0; px < R; px++) {
+        const u = px / R, v = py / R; let s2 = 0;
+        if (k === 0) s2 = tex(u, v);
+        else if (k === 1) { let a = 0; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const fu = u * N - 0.5 + i, fv = v * N - 0.5 + j, iu = Math.floor(fu), iv = Math.floor(fv), du = fu - iu, dv = fv - iv; const t = (x, y) => (occ((x + 0.5) / N, (y + 0.5) / N) ? 1 : 0); a += t(iu, iv) * (1 - du) * (1 - dv) + t(iu + 1, iv) * du * (1 - dv) + t(iu, iv + 1) * (1 - du) * dv + t(iu + 1, iv + 1) * du * dv; } s2 = a / 9; }
+        else { let a = 0; const rad = 4.5 / N; for (const [ox, oy] of OFF) a += occ(u + ox * rad, v + oy * rad) ? 1 : 0; s2 = a / OFF.length; }
+        const o = (py * R + px) * 4, al = 0.42 * s2; for (let c = 0; c < 3; c++) img.data[o + c] = fc[c] * (1 - al) + sc[c] * al; img.data[o + 3] = 255;
+      }
+      const tmp = document.createElement('canvas'); tmp.width = tmp.height = R; tmp.getContext('2d').putImageData(img, 0, 0); g.drawImage(tmp, x0, y0);
+      g.save();
+      g.font = font(600, 11, true); g.fillStyle = css('--ink'); g.textAlign = 'left'; g.fillText(n, x0, y0 - 16); g.fillStyle = css('--mute'); g.font = font(500, 10.5, false); g.fillText(s, x0, y0 - 4);
+      g.strokeStyle = css('--line'); g.strokeRect(x0, y0, R, R);
+      g.restore();
+    });
+  });
+  $('#sh-n').oninput = (e) => { N = +e.target.value; $('#sh-n-o').textContent = `${N}²`; sh.redraw(); };
+})();
+
+/* ======================================================================= C4 easing */
+(() => {
+  const bez = (x1, y1, x2, y2) => (x) => {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx, cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    let t = x; for (let i = 0; i < 8; i++) { const fx = ((ax * t + bx) * t + cx) * t - x, d = (3 * ax * t + 2 * bx) * t + cx; if (Math.abs(fx) < 1e-6 || !d) break; t -= fx / d; }
+    t = clamp01(t); return ((ay * t + by) * t + cy) * t;
+  };
+  const C = [['entrance', bez(0.16, 1, 0.3, 1), '--accent', 'cubic-bezier(0.16, 1, 0.3, 1)'], ['exit', bez(0.6, 0, 0.9, 0.35), '--blue', 'cubic-bezier(0.6, 0, 0.9, 0.35)'], ['state→state', bez(0.65, 0, 0.35, 1), '--violet', 'cubic-bezier(0.65, 0, 0.35, 1)'], ['smootherstep', smoother, '--green', '6u⁵ − 15u⁴ + 10u³'], ['linear', (x) => x, '--faint', 'continuous motion only']];
+  let t = -1, dur = 0.9;
+  const plot = makeCanvas($('#ez-plot'), (w) => clamp(w * 0.72, 260, 330), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const p = 34, S = Math.min(w - 2 * p - 120, h - 2 * p), x0 = p, y0 = h - p;
+    g.strokeStyle = css('--line'); g.strokeRect(x0, y0 - S, S, S);
+    g.font = font(600, 10, true); g.fillStyle = css('--mute'); g.textAlign = 'center'; g.fillText('time →', x0 + S / 2, y0 + 16); g.save(); g.translate(x0 - 12, y0 - S / 2); g.rotate(-Math.PI / 2); g.fillText('progress →', 0, 0); g.restore();
+    C.forEach(([n, f, c], k) => { g.strokeStyle = css(c); g.lineWidth = 2.2; g.beginPath(); for (let i = 0; i <= 120; i++) { const x = i / 120; const X = x0 + x * S, Y = y0 - f(x) * S; i ? g.lineTo(X, Y) : g.moveTo(X, Y); } g.stroke();
+      g.fillStyle = css(c); g.textAlign = 'left'; g.font = font(600, 11, true); g.fillText(n, x0 + S + 14, y0 - S + 14 + k * 20); });
+  });
+  const run = makeCanvas($('#ez-run'), (w) => clamp(w * 0.72, 260, 330), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const L = 24, R = w - 24;
+    g.font = font(600, 10, true); g.textAlign = 'left';
+    C.slice(0, 4).forEach(([n, f, c], k) => { const y = 26 + k * 34; g.fillStyle = css('--mute'); g.fillText(n.toUpperCase(), L, y); g.strokeStyle = css('--line'); g.lineWidth = 3; g.beginPath(); g.moveTo(L, y + 10); g.lineTo(R, y + 10); g.stroke();
+      const u = t < 0 ? 0 : clamp01(t / dur); g.fillStyle = css(c); g.beginPath(); g.arc(L + f(u) * (R - L), y + 10, 7, 0, Math.PI * 2); g.fill(); });
+    // panel demo
+    const words = 6, hold = 1 + 0.25 * Math.max(0, words - 3), exitD = dur / 2, tot = dur + hold + exitD;
+    const py = 170, ph = h - py - 22, pw = Math.min(260, R - L);
+    let x = L - pw - 20, op = 0;
+    if (t >= 0) { if (t < dur) { const k = C[0][1](t / dur); x = (L - pw * 0.6) + (pw * 0.6) * k; op = k; } else if (t < dur + hold) { x = L; op = 1; } else if (t < tot) { const k = C[1][1]((t - dur - hold) / exitD); x = L - k * pw * 0.6; op = 1 - k; } }
+    g.globalAlpha = clamp01(op); g.fillStyle = css('--surface2'); g.strokeStyle = css('--accent'); g.lineWidth = 1.5; g.fillRect(x, py, pw, ph); g.strokeRect(x, py, pw, ph);
+    g.fillStyle = css('--ink'); g.font = font(700, 14, false); g.fillText('Rack turns the pinion', x + 14, py + 26); g.fillStyle = css('--mute'); g.font = font(500, 11, true); g.fillText('6 words → hold 1.75 s', x + 14, py + 46); g.globalAlpha = 1;
+    g.fillStyle = css('--mute'); g.font = font(500, 10.5, true); g.textAlign = 'right';
+    const phase = t < 0 ? 'press play' : t < dur ? `enter ${dur.toFixed(2)} s` : t < dur + hold ? `hold ${hold.toFixed(2)} s` : t < tot ? `exit ${exitD.toFixed(2)} s` : 'done';
+    g.fillText(phase, R, h - 6);
+  });
+  let playing = false;
+  $('#ez-play').onclick = () => { t = 0; playing = true; };
+  $('#ez-dur').oninput = (e) => { dur = +e.target.value; $('#ez-dur-o').textContent = `${dur.toFixed(2)} s`; run.redraw(); };
+  loopWhenVisible($('#ez-run'), (dt) => { if (playing) { t += dt; run.redraw(); if (t > dur + 1.75 + dur / 2 + 0.4) playing = false; } });
+})();
+
+/* ======================================================================= C5 performance */
+(() => {
+  const TIERS = [{samples: 8, ao: true, shadow: 4096, pr: 2, cost: 11.5}, {samples: 4, ao: false, shadow: 2048, pr: 1.5, cost: 6.4}, {samples: 2, ao: false, shadow: 1024, pr: 1, cost: 3.6}];
+  let tier = 0, m = 0.9, simT = 0, perf = {n: 0, sum: 0, slow: 0, age: 0}, hist = [], log = [], acc = 0;
+  let seed = 3; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const tbl = $('#pf-tiers');
+  const drawTbl = () => { tbl.innerHTML = `<tr><th>tier</th><th>MSAA</th><th>GTAO</th><th>shadow</th><th>pixel ratio</th></tr>` + TIERS.map((t, i) => `<tr class="${i === tier ? 'on' : ''}"><td>${i}</td><td>${t.samples}×</td><td>${t.ao ? 'on' : 'off'}</td><td>${t.shadow}²</td><td>≤ ${t.pr}</td></tr>`).join(''); };
+  const writeLog = () => { $('#pf-log').innerHTML = log.length ? log.map((l) => `<div>${l}</div>`).join('') : '<div style="color:var(--mute)">watching frame times…</div>'; };
+  const reset = () => { tier = 0; simT = 0; perf = {n: 0, sum: 0, slow: 0, age: 0}; hist = []; log = []; drawTbl(); writeLog(); };
+  const label = (v) => (v < 1.2 ? 'desktop' : v < 2 ? 'laptop' : v < 2.8 ? 'integrated' : 'old phone');
+  const step = () => {
+    const ms = TIERS[tier].cost * m * (1 + (rnd() - 0.5) * 0.25) + (rnd() < 0.03 ? 8 : 0), dt = Math.max(ms, 16.67) / 1000; // vsync floors at 16.7 ms
+    simT += dt; hist.push([simT, dt * 1000, tier]); while (hist.length && hist[0][0] < simT - 8) hist.shift();
+    if (tier < TIERS.length - 1) { perf.age += dt; if (perf.age > 0.6) { perf.sum += dt; perf.n++; if (perf.sum >= 0.5 && perf.n >= 6) { const avg = perf.sum / perf.n; perf.slow = avg > 0.022 ? perf.slow + 1 : 0; perf.sum = 0; perf.n = 0;
+      if (perf.slow >= (perf.age < 6 ? 1 : 2)) { tier++; log.unshift(`t=${simT.toFixed(1)}s  avg ${(avg * 1000).toFixed(1)} ms > 22 ms → tier ${tier}`); Object.assign(perf, {age: 0, slow: 0}); drawTbl(); writeLog(); } } } }
+    return dt;
+  };
+  const cv = makeCanvas($('#pf-cv'), 210, ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const L = 44, R = w - 14, T = 14, B = h - 22, Y = (ms) => B - (Math.min(ms, 60) / 60) * (B - T), X = (s) => R - ((simT - s) / 8) * (R - L);
+    g.font = font(600, 10, true); g.textAlign = 'right';
+    for (const [ms, c, n] of [[16.7, '--green', '16.7 ms · 60 fps'], [22, '--accent', '22 ms · tier rule'], [33.3, '--mute', '33 ms · 30 fps']]) { g.strokeStyle = css(c); g.setLineDash([4, 4]); g.lineWidth = 1; g.beginPath(); g.moveTo(L, Y(ms)); g.lineTo(R, Y(ms)); g.stroke(); g.setLineDash([]); g.fillStyle = css(c); g.fillText(n, R, Y(ms) - 4); }
+    g.fillStyle = css('--mute'); [0, 20, 40, 60].forEach((ms) => g.fillText(ms, L - 6, Y(ms) + 3));
+    g.lineWidth = 1.6; let prev = null;
+    for (const [s, ms, tr] of hist) { const p = [X(s), Y(ms)]; if (prev) { g.strokeStyle = css(['--accent', '--orange', '--blue'][tr]); g.beginPath(); g.moveTo(...prev); g.lineTo(...p); g.stroke(); } prev = p; }
+    g.textAlign = 'left'; g.fillStyle = css('--mute'); g.fillText('frame time, last 8 s (colour = tier)', L, B + 16);
+  });
+  $('#pf-m').oninput = (e) => { m = +e.target.value; $('#pf-m-o').textContent = label(m); };
+  $('#pf-reset').onclick = reset;
+  loopWhenVisible($('#pf-cv'), (dt) => { acc += dt; let guard = 0; while (acc > 0 && guard++ < 20) acc -= step(); cv.redraw(); });
+  reset();
+
+  // warm-up lanes
+  const W = $('#warm');
+  const progs = ['MeshStandard', 'MeshPhysical (glass)', 'Shadow depth', 'GTAO normals', 'GTAO + denoise', 'Output'];
+  W.innerHTML = `<div class="row"><span class="lbl">without warm-up</span><div class="lane" id="wl0"></div></div><div class="row"><span class="lbl">warmComposer()</span><div class="lane" id="wl1"></div></div><div class="row"><span></span><div class="mono" style="font-size:11px;color:var(--mute);display:flex;justify-content:space-between"><span>0</span><span>0.5 s</span><span>1.0 s</span><span>1.5 s</span></div></div>`;
+  const cols = ['--violet', '--blue', '--green', '--orange', '--amber', '--accent'];
+  const lane = (id, par) => { const el = $(id); el.innerHTML = progs.map((p, i) => `<div title="${p}" style="background:var(${cols[i]});left:${par ? 0 : i * 15.5}%;width:${par ? 26 : 15}%;top:${par ? 2 + i * 3 : 3}px;${par ? 'height:3px' : ''};opacity:0;transition:opacity .2s"></div>`).join('') + `<div title="first frame" style="background:var(--ink);width:3px;left:${par ? 27 : 93}%;opacity:0"></div>`; };
+  const play = () => { lane('#wl0', false); lane('#wl1', true); requestAnimationFrame(() => {
+    $$('#wl0 div').forEach((d, i) => setTimeout(() => (d.style.opacity = 1), (reduced ? 0 : 1) * (i + 1) * 240));
+    $$('#wl1 div').forEach((d, i) => setTimeout(() => (d.style.opacity = 1), (reduced ? 0 : 1) * (i < 6 ? 260 : 400)));
+  }); };
+  $('#warm-play').onclick = play; play();
+})();
+
+/* ======================================================================= C6 overlay */
+(() => {
+  let a = 0;
+  const ro = $('#ov-ro');
+  ro.innerHTML = ['window', 'scale = min(w/1600, h/900)', 'projected point', 'leader'].map((n) => `<div><span class="lbl">${n}</span><b>–</b></div>`).join('');
+  const rb = $$('b', ro);
+  const cv = makeCanvas($('#ov-cv'), (w) => clamp(w * 0.42, 260, 360), ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const f = 1.7, D = 5.2, el = 0.42;
+    const pr = ([x, y, z]) => { const x1 = x * Math.cos(a) - z * Math.sin(a), z1 = x * Math.sin(a) + z * Math.cos(a); const y2 = y * Math.cos(el) - z1 * Math.sin(el), z2 = y * Math.sin(el) + z1 * Math.cos(el); const zc = D + z2; const ndc = [(f * x1) / zc / (w / h), (f * y2) / zc]; return {x: (ndc[0] * 0.5 + 0.5) * w * 0.62 + w * 0.06, y: (-ndc[1] * 0.5 + 0.5) * h, z: zc, ndc}; };
+    const V = [[-1, -0.6, -0.6], [1, -0.6, -0.6], [1, -0.6, 0.6], [-1, -0.6, 0.6], [-1, 0.6, -0.6], [1, 0.6, -0.6], [1, 0.6, 0.6], [-1, 0.6, 0.6]];
+    const Ed = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+    g.strokeStyle = css('--mute'); g.lineWidth = 1.3; Ed.forEach(([i, j]) => { const p = pr(V[i]), q = pr(V[j]); g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); g.stroke(); });
+    const P = pr([0.7, 0.6, 0.6]);
+    const lx = w - Math.min(220, w * 0.34) - 14, ly = 30, lw = Math.min(220, w * 0.34);
+    // leader
+    g.strokeStyle = css('--accent'); g.lineWidth = 1.2; g.beginPath(); g.moveTo(lx, ly + 22); g.lineTo(lx - 24, ly + 22); g.lineTo(P.x, P.y); g.stroke();
+    g.fillStyle = css('--accent'); g.beginPath(); g.arc(P.x, P.y, 4.5, 0, Math.PI * 2); g.fill(); g.strokeStyle = css('--accent'); g.beginPath(); g.arc(P.x, P.y, 9, 0, Math.PI * 2); g.stroke();
+    // label
+    g.fillStyle = css('--surface'); g.strokeStyle = css('--line'); g.fillRect(lx, ly, lw, 44); g.strokeRect(lx, ly, lw, 44);
+    g.fillStyle = css('--ink'); g.font = font(600, 13, false); g.textAlign = 'left'; g.fillText('Camshaft', lx + 12, ly + 20); g.fillStyle = css('--mute'); g.font = font(600, 9.5, false); g.fillText('HALF CRANK SPEED', lx + 12, ly + 35);
+    g.font = font(500, 11, true); g.fillStyle = css('--mute'); g.fillText(`ndc (${P.ndc[0].toFixed(2)}, ${P.ndc[1].toFixed(2)}) → px (${P.x.toFixed(0)}, ${P.y.toFixed(0)})`, 14, h - 12);
+    rb[2].textContent = `${P.x.toFixed(0)}, ${P.y.toFixed(0)}`; rb[3].textContent = 'redrawn every frame';
+  });
+  const upd = () => { rb[0].textContent = `${innerWidth} × ${innerHeight}`; rb[1].textContent = Math.min(innerWidth / 1600, innerHeight / 900).toFixed(3); };
+  addEventListener('resize', upd); upd();
+  loopWhenVisible($('#ov-cv'), (dt) => { a += dt * 0.5; cv.redraw(); });
+})();
+
+/* ======================================================================= C7 sound */
+(() => {
+  const {FIR, CLICKS, DUR} = window.__V8;
+  const AIR = [3.5, 9.7, 14.7, 17.3, 19.9];
+  let ctx = null, t0 = 0, playing = false, nodes = [];
+  const cv = makeCanvas($('#snd-cv'), 150, ({g, w, h}) => {
+    g.clearRect(0, 0, w, h);
+    const L = 76, R = w - 16, X = (s) => L + (s / DUR) * (R - L), mute = css('--mute');
+    g.font = font(600, 10, true); g.textAlign = 'right'; g.fillStyle = mute;
+    [['bed', 24], ['thuds', 58], ['clicks', 90], ['air', 118]].forEach(([n, y]) => g.fillText(n.toUpperCase(), L - 10, y + 4));
+    g.fillStyle = css('--violet'); g.globalAlpha = 0.2; g.fillRect(X(0), 16, X(DUR) - X(0), 16); g.globalAlpha = 1; g.fillStyle = css('--violet'); g.textAlign = 'left'; g.fillText('Am9 · Fmaj7 · Cmaj7 · G6 @ 92 bpm, one level throughout', X(0) + 6, 28);
+    g.strokeStyle = css('--ink'); g.lineWidth = 1; FIR.forEach((f) => { g.beginPath(); g.moveTo(X(f), 48); g.lineTo(X(f), 68); g.stroke(); });
+    g.fillStyle = css('--accent'); CLICKS.forEach((c) => { g.beginPath(); g.arc(X(c), 90, 4, 0, Math.PI * 2); g.fill(); });
+    g.fillStyle = css('--blue'); AIR.forEach((s) => { g.globalAlpha = 0.5; g.beginPath(); g.moveTo(X(s), 124); g.quadraticCurveTo(X(s + 0.4), 104, X(s + 1.2), 124); g.fill(); g.globalAlpha = 1; });
+    g.globalAlpha = 0.5; g.beginPath(); g.moveTo(X(12.1), 124); g.quadraticCurveTo(X(12.8), 98, X(14.1), 124); g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = css('--line'); for (let s = 0; s <= DUR; s += 2) { g.beginPath(); g.moveTo(X(s), 136); g.lineTo(X(s), 140); g.stroke(); }
+    if (playing && ctx) { const t = ctx.currentTime - t0; g.strokeStyle = css('--accent'); g.lineWidth = 2; g.beginPath(); g.moveTo(X(t), 8); g.lineTo(X(t), h - 6); g.stroke(); }
+  });
+  const stop = () => { nodes.forEach((n) => { try { n.stop(); } catch (e) {} }); nodes = []; playing = false; $('#snd-play').textContent = '▶ Play 26 s'; cv.redraw(); };
+  $('#snd-play').onclick = () => {
+    if (playing) return stop();
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume(); t0 = ctx.currentTime + 0.1; playing = true; $('#snd-play').textContent = '■ Stop';
+    const master = ctx.createGain(); master.gain.value = 0.7; master.connect(ctx.destination);
+    const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noise.getChannelData(0); let s = 1; for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = (s / 2147483647) * 2 - 1; }
+    const thud = (t) => { const o = ctx.createOscillator(), gn = ctx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.12); gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.5, t + 0.004); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.22); o.connect(gn).connect(master); o.start(t); o.stop(t + 0.25); nodes.push(o); };
+    const click = (t) => { const o = ctx.createOscillator(), gn = ctx.createGain(); o.frequency.value = 2400; gn.gain.setValueAtTime(0.25, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.025); o.connect(gn).connect(master); o.start(t); o.stop(t + 0.03); nodes.push(o); };
+    const air = (t, dur, f0, f1, lv) => { const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.9; bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur); const gn = ctx.createGain(); gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(lv, t + dur * 0.4); gn.gain.linearRampToValueAtTime(0.0001, t + dur); src.connect(bp).connect(gn).connect(master); src.start(t); src.stop(t + dur + 0.05); nodes.push(src); };
+    FIR.forEach((f) => thud(t0 + f)); CLICKS.forEach((c) => click(t0 + c)); AIR.forEach((a) => air(t0 + a, 1.2, 700, 1500, 0.12)); air(t0 + 12.1, 2.0, 400, 1600, 0.18);
+    const tick = () => { if (!playing) return; if (ctx.currentTime - t0 > DUR) return stop(); cv.redraw(); requestAnimationFrame(tick); }; tick();
+  };
+})();
+
+/* ======================================================================= C8 traps */
+(() => {
+  const T = [
+    ['<code>smoothstep(a, b, x)</code> with a &gt; b returns 0 on Windows', 'The GLSL spec says results are <i>undefined</i> if edge0 ≥ edge1. Desktop GL drivers happen to give you the mirrored curve, but ANGLE translates GLSL to HLSL for Direct3D and returns 0. Chrome on Windows uses ANGLE/D3D by default, so the bug only shows up there.', '1.0 - smoothstep(b, a, x)'],
+    ['A decal or ShadowMaterial a hair above the floor loses the depth test', 'Depth buffers store non-linear values with limited precision, which is worse in an off-screen render target. Two surfaces 0.1 mm apart map to the same depth value and z-fight. <code>polygonOffset</code> nudges the depth of one surface toward the camera in depth-buffer units.', "polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8"],
+    ['A quad laid into the ground with a mirrored mapping disappears', 'A triangle is front-facing when its vertices wind counter-clockwise on screen. Mirroring (a negative scale, or flipped UV-based placement) reverses the winding, so the GPU culls it as a back face.', 'side: THREE.DoubleSide'],
+    ['One NaN pixel blacks out the whole frame through bloom', '<code>pow(x, y)</code> with x &lt; 0 is NaN in GLSL. Bloom downsamples and blurs the image across a mip chain, so each level averages the NaN into its neighbours (NaN + anything = NaN) until the whole frame is affected.', 'pow(max(x, 0.0), y)'],
+    ['GTAO on a clipped model brings back a pale ghost of the cut half', 'GTAO renders the scene again with its own <code>normalMaterial</code> to get depth and normals. That material doesn\'t have your clipping planes, so AO is computed for geometry you cut away, and it shows up as shading where nothing is drawn.', 'gtao.normalMaterial.clippingPlanes = [CLIP]'],
+    ['three swaps PCFSoftShadowMap for PCFShadowMap on first render', 'From <code>kit/warm.js</code>: the swap happens inside the first shadow render, after warm-up, so the warmed programs don\'t match the requested cache key and get compiled again with a freeze. warm.js fixes the type first.', 'if (type === PCFSoftShadowMap) type = PCFShadowMap'],
+  ];
+  $('#trap-grid').innerHTML = T.map(([h, p, f]) => `<div class="card trap"><h4>${h}</h4><p>${p}</p><div class="fix"><span class="lbl">fix</span> <code>${esc(f)}</code></div></div>`).join('');
+})();
+</script>
+
+<script type="module">
+/* ======================================================================= C2 three.js cutaway */
+const wrap = document.getElementById('three-wrap'), msg = document.getElementById('three-msg');
+let THREE;
+try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js'); }
+catch (e) { msg.textContent = 'Could not load three.js from the CDN (offline?). The rest of the page still works.'; throw e; }
+msg.remove();
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const renderer = new THREE.WebGLRenderer({antialias: true, stencil: true});
+renderer.localClippingEnabled = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.toneMapping = THREE.NeutralToneMapping ?? THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+wrap.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+scene.add(new THREE.HemisphereLight('#ffffff', '#9a9ca0', 1.6));
+const sun = new THREE.DirectionalLight('#ffffff', 2.4); sun.position.set(-3, 6, 4); scene.add(sun);
+const rim = new THREE.DirectionalLight('#ffffff', 0.8); rim.position.set(4, 2, -3); scene.add(rim);
+const CLIP = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+
+const R = 0.445, ROD = 1.45, BORE = 0.508;
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial({color: c, roughness: 0.5, metalness: 0.35, side: THREE.DoubleSide, ...o});
+const M = {liner: mat('#9ea3aa', {metalness: 0.6, roughness: 0.42}), piston: mat('#d0d3d8', {metalness: 0.7, roughness: 0.32}), rod: mat('#30333a', {roughness: 0.55}), crank: mat('#5b6068', {metalness: 0.7}), head: mat('#b4b8be', {metalness: 0.4}),
+  glass: new THREE.MeshPhysicalMaterial({color: '#ffffff', roughness: 0.05, metalness: 0, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide}),
+  gas: new THREE.MeshBasicMaterial({color: '#2f7fd3', transparent: true, opacity: 0.3, depthWrite: false})};
+const SOLIDS = [];
+const lathe = (pts, m) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 72), m);
+const liner = lathe([[BORE + 0.08, 0.6], [BORE + 0.08, 2.4], [BORE, 2.4], [BORE, 0.6], [BORE + 0.08, 0.6]], M.liner); scene.add(liner); SOLIDS.push(liner);
+const piston = lathe([[0, -0.35], [BORE - 0.01, -0.35], [BORE - 0.01, 0.35], [0, 0.35]], M.piston); scene.add(piston); SOLIDS.push(piston);
+const rodGeo = new THREE.BoxGeometry(0.12, ROD, 0.09); rodGeo.translate(0, ROD / 2, 0);
+const rod = new THREE.Mesh(rodGeo, M.rod); scene.add(rod); SOLIDS.push(rod);
+const crankGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.16, 64); crankGeo.rotateX(Math.PI / 2);
+const crank = new THREE.Mesh(crankGeo, M.crank); crank.position.z = -0.14; scene.add(crank); SOLIDS.push(crank);
+const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.32, 1.5), M.head); head.position.y = 2.56; scene.add(head); SOLIDS.push(head);
+const gasGeo = new THREE.CylinderGeometry(BORE - 0.012, BORE - 0.012, 1, 48); gasGeo.translate(0, 0.5, 0);
+const gas = new THREE.Mesh(gasGeo, M.gas); scene.add(gas);
+
+// stencil twins: back faces +1, front faces −1, colour off; a cap draws where the count != 0
+const twins = [];
+for (const s of SOLIDS) {
+  for (const [side, op] of [[THREE.BackSide, THREE.IncrementWrapStencilOp], [THREE.FrontSide, THREE.DecrementWrapStencilOp]]) {
+    const m = new THREE.MeshBasicMaterial({side, colorWrite: false, depthWrite: false, depthTest: false, stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilFail: op, stencilZFail: op, stencilZPass: op, clippingPlanes: [CLIP]});
+    const t = new THREE.Mesh(s.geometry, m); t.renderOrder = 1; s.add(t); twins.push(t);
+  }
+  s.renderOrder = 3;
+}
+const cap = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({color: '#d6182b', roughness: 0.6, metalness: 0, stencilWrite: true, stencilRef: 0, stencilFunc: THREE.NotEqualStencilFunc, stencilFail: THREE.ReplaceStencilOp, stencilZFail: THREE.ReplaceStencilOp, stencilZPass: THREE.ReplaceStencilOp}));
+cap.renderOrder = 2; cap.onAfterRender = (r) => r.clearStencil(); scene.add(cap);
+
+let mode = 'section', cutZ = 0, caps = true, playing = !matchMedia('(prefers-reduced-motion: reduce)').matches, th = 0;
+const az = {v: 0.75, el: 0.3, d: 7.2};
+const apply = () => {
+  CLIP.constant = cutZ; cap.position.set(0, 1.2, cutZ);
+  const sec = mode === 'section';
+  liner.material = mode === 'glass' ? M.glass : M.liner;
+  for (const s of SOLIDS) { s.material.clippingPlanes = sec ? [CLIP] : null; s.material.needsUpdate = true; }
+  M.gas.clippingPlanes = sec ? [CLIP] : null; M.gas.needsUpdate = true;
+  M.glass.clippingPlanes = null;
+  const showCaps = sec && caps; twins.forEach((t) => (t.visible = showCaps)); cap.visible = showCaps;
+  gas.visible = mode !== 'solid';
+};
+apply();
+document.getElementById('cut-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; mode = b.dataset.m; document.querySelectorAll('#cut-mode .btn').forEach((x) => x.classList.toggle('on', x === b)); apply(); });
+document.getElementById('cut-z').addEventListener('input', (e) => { cutZ = +e.target.value; document.getElementById('cut-z-o').textContent = cutZ.toFixed(2); apply(); });
+document.getElementById('cut-caps').addEventListener('change', (e) => { caps = e.target.checked; apply(); });
+document.getElementById('cut-play').addEventListener('click', (e) => { playing = !playing; e.target.textContent = playing ? '❚❚ Pause crank' : '▶ Run crank'; });
+if (!playing) document.getElementById('cut-play').textContent = '▶ Run crank';
+let drag = null;
+wrap.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY]; wrap.setPointerCapture(e.pointerId); wrap.style.cursor = 'grabbing'; });
+wrap.addEventListener('pointermove', (e) => { if (!drag) return; az.v -= (e.clientX - drag[0]) * 0.008; az.el = Math.min(1.3, Math.max(-0.3, az.el + (e.clientY - drag[1]) * 0.006)); drag = [e.clientX, e.clientY]; });
+wrap.addEventListener('pointerup', () => { drag = null; wrap.style.cursor = ''; });
+wrap.addEventListener('wheel', (e) => { e.preventDefault(); az.d = Math.min(16, Math.max(5, az.d * Math.exp(e.deltaY * 0.001))); }, {passive: false});
+const resize = () => { const w = wrap.clientWidth, h = wrap.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+new ResizeObserver(resize).observe(wrap); resize();
+const GAS = ['#2f7fd3', '#6d4fd8', '#e8590c', '#868e96'];
+let visible = false, last = performance.now();
+new IntersectionObserver((es) => { visible = es[0].isIntersecting; if (visible) { last = performance.now(); requestAnimationFrame(loop); } }).observe(wrap);
+function loop(now) {
+  if (!visible) return;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing) th += dt * 2.2;
+  const a = th, px = R * Math.sin(a), py = R * Math.cos(a), pin = py + Math.sqrt(ROD * ROD - px * px);
+  piston.position.y = pin; crank.rotation.z = -a;
+  rod.position.set(px, py, 0); rod.rotation.z = Math.atan2(-(0 - px), pin - py);
+  const crown = pin + 0.35; gas.position.y = crown; gas.scale.y = Math.max(0.001, 2.4 - crown);
+  const ps = ((a * 180) / Math.PI) % 720; M.gas.color.set(GAS[ps < 60 ? 2 : ps < 360 ? 3 : ps < 540 ? 0 : 1]);
+  scene.background = new THREE.Color(css('--surface2') || '#f0f0ee');
+  camera.position.set(az.d * Math.cos(az.el) * Math.sin(az.v), 1.3 + az.d * Math.sin(az.el), az.d * Math.cos(az.el) * Math.cos(az.v));
+  camera.lookAt(0, 1.15, 0);
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
