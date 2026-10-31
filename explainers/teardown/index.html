@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Teardown, Explained</title>
 <meta name="description" content="How the teardown Claude Code skill is organised, and the rendering, animation, UI and audio ideas it is built on.">
+<meta property="og:title" content="teardown: how a Claude Code skill builds 3D machine simulators">
+<meta name="explainer:topic" content="AI & Developer Tools">
+<meta name="explainer:tags" content="Claude Code, skills, three.js, rendering, animation, WebGL">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -631,7 +634,7 @@ const font = (w, px, mono) => `${w} ${px}px ${mono ? "'JetBrains Mono',monospace
   const links = $$('#navlinks a');
   const map = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
   const io = new IntersectionObserver((es) => es.forEach((e) => {
-    if (e.isIntersecting) { links.forEach((l) => l.classList.remove('on')); const a = map.get(e.target.id); if (a) { a.classList.add('on'); a.scrollIntoView({block: 'nearest', inline: 'nearest'}); } }
+    if (e.isIntersecting) { links.forEach((l) => l.classList.remove('on')); const a = map.get(e.target.id); if (a) { a.classList.add('on'); const box = a.parentElement, l = a.offsetLeft - box.offsetLeft; if (l < box.scrollLeft || l + a.offsetWidth > box.scrollLeft + box.clientWidth) box.scrollLeft = l - 12; } }
   }), {rootMargin: '-45% 0px -50% 0px'});
   map.forEach((_, id) => { const el = document.getElementById(id); if (el) io.observe(el); });
 })();
@@ -797,7 +800,8 @@ const FILES = [
       ${cmd ? `<pre><code>${esc(cmd)}</code></pre>` : ''}<div class="lbl" style="margin-top:12px">Files</div><p class="mono" style="font-size:13px;margin:4px 0 0">${esc(files)}</p>
       ${cur === 10 ? `<div class="note" style="margin-top:16px"><b>Why this works:</b> the agent can't watch video, but it can read images. capture.mjs turns "is the animation right?" into a tiled PNG it can actually check.</div>` : ''}`;
     $('#st-pos').textContent = `${cur + 1} / ${S.length}`;
-    list.querySelector(`[data-i="${cur}"]`).scrollIntoView({block: 'nearest'});
+    const b = list.querySelector(`[data-i="${cur}"]`), top = b.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top + b.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top - 8;
   };
   list.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) show(+b.dataset.i); });
   $('#st-prev').onclick = () => show(cur - 1);
